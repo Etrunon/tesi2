@@ -22,10 +22,10 @@ class ExampleSpec extends FlatSpec with Matchers {
     "12".toInt should be (12)
   }
 
-  "The Main" should "return 100 when given 12" in {
+  //  "The Main" should "return 100 when given 12" in {
 //    val mym = new MyMain()
 //    val z: Array[String] = Array("12")
 //    print(mym.main(z))
 //    mym.main(z) should be (100)
-  }
+  //  }
 }

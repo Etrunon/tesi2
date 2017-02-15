@@ -14,9 +14,6 @@ apply plugin: 'idea'
 repositories {
     mavenCentral()
     mavenLocal()
-    maven {
-        url "https://mvnrepository.com"///artifact/org.apache.spark/spark-graphx_2.10"
-    }
 }
 
 
@@ -25,8 +22,16 @@ dependencies {
     compile "org.scala-lang:scala-library:2.10.4"
     compile "org.scala-lang:scala-compiler:2.10.4"
 
-    compile group: 'org.apache.spark', name: 'spark-graphx_2.10', version: '1.2.0'
-    compile group: 'org.scalatest', name: 'scalatest_2.12', version: '3.2.0-SNAP3'
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-core_2.11
+    compile group: 'org.apache.spark', name: 'spark-core_2.11', version: '2.1.0'
+
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-graphx_2.11
+    compile group: 'org.apache.spark', name: 'spark-graphx_2.11', version: '2.1.0'
+
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-assembly_2.10
+    compile group: 'org.apache.spark', name: 'spark-assembly_2.10', version: '1.6.0-cdh5.10.0'
+
+    testCompile group: 'org.scalatest', name: 'scalatest_2.12', version: '3.2.0-SNAP3'
 
 
     testCompile "junit:junit:4.11"
