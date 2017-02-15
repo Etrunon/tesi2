@@ -1,0 +1,40 @@
+group 'tesi'
+version '1.0-SNAPSHOT'
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.13'
+    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
+}
+
+version = '0.1'
+
+apply plugin: 'scala'
+apply plugin: 'idea'
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    maven {
+        url "https://mvnrepository.com"///artifact/org.apache.spark/spark-graphx_2.10"
+    }
+}
+
+
+dependencies {
+    compile 'org.slf4j:slf4j-api:1.7.5'
+    compile "org.scala-lang:scala-library:2.10.4"
+    compile "org.scala-lang:scala-compiler:2.10.4"
+
+    compile group: 'org.apache.spark', name: 'spark-graphx_2.10', version: '1.2.0'
+    compile group: 'org.scalatest', name: 'scalatest_2.12', version: '3.2.0-SNAP3'
+
+
+    testCompile "junit:junit:4.11"
+}
+
+
+task run(type: JavaExec, dependsOn: classes) {
+    main = 'Main'
+    classpath sourceSets.main.runtimeClasspath
+    classpath configurations.runtime
+}
