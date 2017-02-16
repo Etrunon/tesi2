@@ -9,7 +9,6 @@ task wrapper(type: Wrapper) {
 version = '0.1'
 
 apply plugin: 'scala'
-apply plugin: 'idea'
 
 repositories {
     mavenCentral()
@@ -22,37 +21,10 @@ repositories {
 
 
 dependencies {
-    compile 'org.slf4j:slf4j-api:1.7.5'
-    compile "org.scala-lang:scala-library:2.10.4"
-    compile "org.scala-lang:scala-compiler:2.10.4"
-
-/*
-    // https://mvnrepository.com/artifact/org.apache.spark/spark-core_2.11
-    compile group: 'org.apache.spark', name: 'spark-core_2.11', version: '2.1.0'
-
-    // https://mvnrepository.com/artifact/org.apache.spark/spark-graphx_2.11
-    compile group: 'org.apache.spark', name: 'spark-graphx_2.11', version: '2.1.0'
-
-    // https://mvnrepository.com/artifact/org.apache.spark/spark-assembly_2.10
-    compile group: 'org.apache.spark', name: 'spark-assembly_2.10', version: '1.6.0-cdh5.10.0'
-
-
-    compile 'org.scala-lang:scala-library:2.10.3'
-    compile group: 'org.apache.spark', name: 'spark-core_2.10', version: '0.9.0-cdh5.0.0-beta-2'
-    compile group: 'org.apache.spark', name: 'spark-graphx_2.10', version: '0.9.0-cdh5.0.0-beta-2'
-    compile(
-      [group: 'org.slf4j', name: 'slf4j-api', version: '1.6.6'],
-      [group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.6.6']
-    )
-
-*/
-
-    compile group: 'org.apache.spark', name: 'spark-core_2.10', version: '0.9.0-cdh5.0.0-beta-2'
-    compile group: 'org.apache.spark', name: 'spark-graphx_2.10', version: '0.9.0-cdh5.0.0-beta-2'
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-graphx_2.10
+    compile group: 'org.apache.spark', name: 'spark-graphx_2.10', version: '2.1.0'
 
     testCompile group: 'org.scalatest', name: 'scalatest_2.12', version: '3.2.0-SNAP3'
-
-
     testCompile "junit:junit:4.11"
 }
 

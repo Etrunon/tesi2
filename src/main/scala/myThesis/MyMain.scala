@@ -9,12 +9,10 @@ import org.apache.spark.{SparkConf, SparkContext}
 /**
   * Created by etrunon on 13/02/17.
   */
-
-
 object MyMain {
-
   def main(args: Array[String]): Unit = {
-
+    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
+    val sc = new SparkContext(conf)
 
     // Sets source folder
     val edgeFile = "RunData/Input/mini1.csv"
@@ -23,10 +21,6 @@ object MyMain {
     val outputDir = new File(outputPath)
     outputDir.mkdirs()
     val edgedelimiter = ","
-
-    // Sets spark Conf
-    val sconf: SparkConf = new SparkConf().setMaster("local[3]").setAppName("CommDec.Tesi2")
-    val sc = new SparkContext(sconf)
 
     System.setProperty("output_path", outputPath)
 
@@ -49,36 +43,8 @@ object MyMain {
     val tmpGraph: Graph[(Long, Long), Long] = Graph.fromEdges(edgeRDD, (-1L, -1L))
 
     val degrees = tmpGraph.degrees
-    val graph: Graph[(Long, Long), Long] = tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => (degOpt.getOrElse(0).toLong, id) }
+    val graph: Graph[(Long, Long, List[Long]), Long] = tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => (degOpt.getOrElse(0).toLong, id, List[Long](id)) }
 
-    /*
-    val rawGraph: Graph[(),()] = Graph.textFile("twittergraph")
-    val inDeg: RDD[(VertexId, Int)] =
-      mapReduceTriplets[Int](et => Iterator((et.dst.id, 1)), _ + _)
-    */
-
-    //    println("Beginning things")
-    val listNeighbours = (e: EdgeTriplet[(Long, Long), Long]) => {
-      //      println(s"Src ${e.srcId}, Dst ${e.dstId}")
-      val x = Iterator(e.srcAttr, e.dstAttr)
-      //      x.foreach(println)
-      x
-    }
-    //    println("Beginning other things")
-    val compareNeighbours = (deg1: Long, deg2: Long) => {
-      //      println(s"comparing $deg1, $deg2")
-      Math.max(deg1, deg2)
-    }
-    //    println("Beginning final things")
-    val maxDegNeig = graph.mapReduceTriplets(listNeighbours, compareNeighbours)
-    maxDegNeig.collect().foreach(println)
+    tmpGraph.triplets.collect().foreach(println)
   }
-
-  class test(degree: Long, cid: Long) {
-    override def toString: String = {
-      "{deg:" + degree + ",cid:" + cid + "}"
-    }
-
-  }
-
 }
