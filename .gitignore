@@ -4,3 +4,6 @@ build/*
 gradle/*
 RunData/Input/*
 RunData/Output/*
+gradlew
+gradlew.bat
+trash
