@@ -44,10 +44,10 @@ object MyMain {
     // create the graph from the file and add util data: (degree, commId)
     val tmpGraph: Graph[(Long, Long), Long] = Graph.fromEdges(edgeRDD, (-1L, -1L))
 
-    val degrees = tmpGraph.degrees
-    // (Degree, id, community)
+    val degrees = tmpGraph.degrees.cache()
+    // (Degree, CommId, communityList)
     val graph: Graph[(Long, Long, List[Long]), Long] = tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => (degOpt.getOrElse(0).toLong / 2, id, List[Long](id)) }
-    graph.vertices.collect().foreach(println)
+    //    graph.vertices.collect().foreach(println)
     println("///////////////" * 4)
     // Example 1 Aggregate message
     //    val graph: Graph[Double, Int] = GraphGenerators.logNormalGraph(sc, numVertices = 100).mapVertices((id, _) => id.toDouble)
@@ -114,17 +114,17 @@ object MyMain {
     val totArchs = sc.broadcast(newTmpGraph.edges.count())
 
     println(s"graphConstant $graphConstant")
-    //Rdd contenente il numero di messaggi ricevuti dalla propria uguale comnita' e la lista contentente
+    //Rdd contenente il numero di messaggi ricevuti dalla propria uguale comunita' e la lista contentente
     // i gradi dei nodi che ci hanno messaggiato
-    val result: VertexRDD[(Long, List[Long])] = newTmpGraph.aggregateMessages(trip => {
+    //ToDo posso togliere il primo long?!
+    val connectedResult: VertexRDD[(Long, List[Long])] = newTmpGraph.aggregateMessages(trip => {
+      //If nodes are in the same community
       if (trip.srcAttr._2 == trip.dstAttr._2) {
-        val message = (1L, List(trip.srcAttr._1))
-        trip.sendToDst(message)
+        trip.sendToDst(1L, List(trip.srcAttr._1))
       }
     }, (a, b) => (a._1 + b._1, a._2 ::: b._2))
 
-    println(s"//////////// Going to print results! ${result.count()} ////////////")
-    val insideMod = result.join(newTmpGraph.vertices).map(x => {
+    val insideMod = connectedResult.join(newTmpGraph.vertices).map(x => {
       var acc: Float = 0f
       //      println(s"Nodo ${x._1}, grado ${x._2._2._1}, grado dei vicini ${x._2._1._2}, mod $acc")
       for (z <- x._2._1._2) {
@@ -133,12 +133,38 @@ object MyMain {
       }
       acc
     }).reduce((a, b) => a + b)
+    println(s"//////////// Going to print results! ${connectedResult.count()} ////////////")
     println(s"inside community modularity $insideMod, partialFinalMod ${insideMod * graphConstant}")
 
     //Remove community nodes to keep only out of comm nodes
-    val outGraph = newTmpGraph.subgraph(vpred = (id, attr) => !tmpComm.contains(id))
-    println(s"OutGraph")
-    val outReached: VertexRDD[List[Long]] = outGraph.aggregateMessages(trip => trip.sendToDst(List(trip.srcId)), (a, b) => a ::: b)
-    outReached.leftJoin(newTmpGraph.vertices)
+    // Sends to each neighbour that is in the same community as me my nodeId.
+    // then each node know that it will have to compute the value for each other node, not included into the list it has
+    //ToDo divide by 2 the result?
+    val subgraph1 = newTmpGraph.subgraph(vpred = (id, attr) => attr._2 == 0)
+    //    subgraph1.vertices.collect().foreach(println)
+
+    val unconnectedResult: VertexRDD[(Long, List[Long])] = subgraph1.aggregateMessages(trip => {
+      if (trip.srcAttr._2 == trip.dstAttr._2) {
+        trip.sendToDst((trip.dstAttr._1, List(trip.srcId)))
+      }
+    }, (a, b) => {
+      (a._1, a._2 ::: b._2)
+    })
+
+    // The rdd contains
+    //  VertexId    ( Degree of node  , List of neighbours  )
+    //    4             2                 list(3, 5, 7, 12)
+    //
+    val test = unconnectedResult.mapValues(neigh => {
+      var acc = 0.0
+      println(s"Leggo il subgraph? ${subgraph1.vertices}")
+      for (vert <- subgraph1.vertices) {
+        println(s"Vert c'e'? $vert")
+        if (!neigh._2.contains(vert._1)) acc += (vert._2._1.toFloat * neigh._1 / graph.edges.count())
+      }
+      acc
+    })
+
+    test.collect().foreach(println)
   }
 }
