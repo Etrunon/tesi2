@@ -79,7 +79,7 @@ object MyMain {
 
     //Mappando ai vertici una funzione che mappa a tutte le funzioni nella mia lista ogni vertice e sommando tutto
     // a ritroso si ha il risultato
-    graph.vertices.map(ver => funRDD.map(f => f(ver)).reduce((a, b) => a + b)).reduce((a, b) => a + b)
+    graph.vertices.map(ver => funRDD.map(f => f(ver)).sum).reduce((a, b) => a + b)
     println("/" * 90)
 
     // Test senza il grafo rdd di mezzo. Fa sostanzialmente la stessa cosa (anche con gli stessi valori in effetti
@@ -90,7 +90,7 @@ object MyMain {
       (23L, (1L, 23L)), (1L, (4L, 1L)), (17L, (1L, 17L)), (3L, (4L, 1L)), (7L, (2L, 7L)), (9L, (4L, 9L)), (31L, (5L, 31L)), (5L, (4L, 5L))
     )
 
-    val test = nodes.map(ver => funRDD.map(f => f(ver)).reduce((a, b) => a + b)).reduce((a, b) => a + b)
+    val test = nodes.map(ver => funRDD.map(f => f(ver)).sum).sum
     println(s"Test, somm a finale: $test, andra' divisa per due? ${test / 2}")
 
     //    graph.vertices.map(vert => {
