@@ -1,16 +1,12 @@
 package myThesis
 
-import java.io.File
+import java.io.{File, _}
 import java.util.Date
 
 import org.apache.spark.graphx._
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.apache.spark.mllib.linalg.DenseVector
-import org.apache.spark.util.{AccumulatorV2, DoubleAccumulator}
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable.ListBuffer
-
 
 /**
   * Created by etrunon on 13/02/17.
@@ -26,27 +22,10 @@ object MyMain {
     val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
     val outputDir = new File(outputPath)
     outputDir.mkdirs()
-    val edgedelimiter = ","
-
     System.setProperty("output_path", outputPath)
 
-    // Parse the input file. If there are 2 int on each line edge weight is 1 by default. If there are 3 input on each line
-    // edge weight is the last one.
-    // If there are 0, 1 or more than 3 element per row throw exception
-    val edgeRDD = sc.textFile(edgeFile).map(row => {
-      val tokens = row.split(edgedelimiter).map(_.trim())
-      tokens.length match {
-        case 2 =>
-          new Edge(tokens(0).toLong, tokens(1).toLong, 1L)
-        case 3 =>
-          new Edge(tokens(0).toLong, tokens(1).toLong, tokens(2).toLong)
-        case _ =>
-          throw new IllegalArgumentException("invalid input line: " + row)
-      }
-    })
-
     // create the graph from the file and add util data: (degree, commId)
-    val tmpGraph: Graph[(Long, Long), Long] = Graph.fromEdges(edgeRDD, (-1L, -1L))
+    val tmpGraph: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
     val degrees = tmpGraph.degrees.cache()
 
     //ToDo remove testing community handler
@@ -74,6 +53,7 @@ object MyMain {
       result += s
     }
     result.foreach(println)
+    saveResultBulk(result)
   }
 
   def modularity(graph: Graph[(Long, Long), Long]): Double = {
@@ -95,5 +75,31 @@ object MyMain {
 
     val modularity = (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
     modularity
+  }
+
+  def readGraph(sc: SparkContext, edgeFile: String): Graph[(Long, Long), Long] = {
+    val edgedelimiter = ","
+
+    // Parse the input file. If there are 2 int on each line edge weight is 1 by default. If there are 3 input on each line
+    // edge weight is the last one.
+    // If there are 0, 1 or more than 3 element per row throw exception
+    val edgeRDD = sc.textFile(edgeFile).map(row => {
+      val tokens = row.split(edgedelimiter).map(_.trim())
+      tokens.length match {
+        case 2 =>
+          new Edge(tokens(0).toLong, tokens(1).toLong, 1L)
+        case 3 =>
+          new Edge(tokens(0).toLong, tokens(1).toLong, tokens(2).toLong)
+        case _ =>
+          throw new IllegalArgumentException("invalid input line: " + row)
+      }
+    })
+    Graph.fromEdges(edgeRDD, (-1L, -1L))
+  }
+
+  def saveResultBulk(result: ListBuffer[String]) = {
+    val pw = new PrintWriter(new File(System.getProperty("output_path") + "/Result.txt"))
+    result.foreach(line => pw.write(line + "\n"))
+    pw.close()
   }
 }
