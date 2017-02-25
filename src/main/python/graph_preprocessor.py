@@ -7,7 +7,7 @@ print(path)
 path = path + "Tesi2/"
 print(path)
 
-name = "mini1.csv"
+name = "micro.csv"
 # Legge un file.
 in_file = open(path + "RunData/Input/" + name, "r")
 

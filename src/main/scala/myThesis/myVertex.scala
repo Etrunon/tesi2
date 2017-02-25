@@ -11,10 +11,33 @@ package myThesis
   * @param cid community Id
   */
 @SerialVersionUID(123L)
-class myVertex(deg: Long, cid: Long) extends Serializable {
-  def degree = deg
+class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
+  val degree = deg
+  var comId = cid
+  val verId = vid
 
-  def comId = cid
+  override def toString: String = s"Vertex $verId degree $degree, member of comm $comId"
 
-  override def toString: String = s"Vertex degree $degree, member of comm $comId"
+  def toStringShort: String = s"$verId, "
+
+  def addToComm(otherDeg: Long, totEdges: Long): Double = {
+    println(s"res ${-degree.toDouble * otherDeg.toDouble / (2.0 * totEdges)}")
+    -degree.toDouble * otherDeg.toDouble / (totEdges)
+  }
+
+  def removeFromComm(otherDeg: Long, totEdges: Long): Double = {
+    degree.toDouble * otherDeg / (totEdges)
+  }
+
+  def switch(to: Long): Unit = {
+    comId = to
+  }
+
+  override def equals(obj: scala.Any): Boolean = {
+    obj match {
+      case obj: myVertex => (obj.verId == this.verId)
+      case _ => false
+    }
+  }
+
 }
