@@ -4,7 +4,7 @@ path = os.getcwd()
 print(path)
 path = path.split("Tesi2")[0]
 print(path)
-path = path + "Tesi2/"
+path += "Tesi2/"
 print(path)
 
 name = "micro.csv"

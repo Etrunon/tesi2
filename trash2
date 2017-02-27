@@ -1,0 +1,287 @@
+Prima parte 0
+Seconda Parte 0.0
+Prima parte 1
+Seconda Parte -1.3333333730697632
+Prima parte 3
+Seconda Parte -4.0000001192092896
+
+
+
+
+
+Step List(1)
+
+{ Community 1:	 members: 1, , mod 0.0	}
+{ Community 3:	 members: 3, , mod 0.0	}
+{ Community 2:	 members: 2, , mod 0.0	}
+Stampo tutte le comunita' dopo il cambio di List(1)
+()
+c.modularity 0.0
+c.modularity 0.0
+c + v 0.0 + 0.0 = 0.0
+c.modularity 0.0
+c + v 0.0 + 0.0 = 0.0
+ðððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððð
+
+
+
+
+
+
+Step List(1, 2)
+
+switchingVertex Vertex 2 degree 2, member of comm 2
+Tupla archi (0,1)
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+{ Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+{ Community 3:	 members: 3, , mod 0.0	}
+{ Community 2:	 members: , mod 0.0	}
+Stampo tutte le comunita' dopo il cambio di List(1, 2)
+()
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+c.modularity -0.02777777777777777
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+c.modularity 0.0
+c + v -0.02777777777777777 + 0.0 = -0.02777777777777777
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+c.modularity 0.0
+c + v -0.02777777777777777 + 0.0 = -0.02777777777777777
+ðððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððð
+
+
+
+
+
+
+Step List(1, 2, 3)
+
+switchingVertex Vertex 3 degree 2, member of comm 3
+Tupla archi (0,1)
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 1:	 members: 1, 2, , mod -0.02777777777777777	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+
+Vertici 1 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+
+Vertici 2 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+AFTER AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: 3, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 3:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 1:	 members: 1, 2, , mod -0.02777777777777777	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+
+Vertici 1 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+
+Vertici 2 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+AFTER AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: 3, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 3:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+{ Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+{ Community 3:	 members: , mod 0.0	}
+{ Community 2:	 members: , mod 0.0	}
+Stampo tutte le comunita' dopo il cambio di List(1, 2, 3)
+()
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 1:	 members: 1, 2, , mod -0.02777777777777777	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+
+Vertici 1 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+
+Vertici 2 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+AFTER AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+c.modularity -0.16666666666666663
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: 3, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 3:	 members: , mod 0.0	}
+c.modularity 0.0
+c + v -0.16666666666666663 + 0.0 = -0.16666666666666663
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+c.modularity 0.0
+c + v -0.16666666666666663 + 0.0 = -0.16666666666666663
+ðððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððððð
+
+Controllo la comunita' { Community 1:	 members: 1, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, , mod 0.0	}
+
+Vertici 1 2
+Risultato aggiunta vertice Vertex 2 degree 2, member of comm 2 -0.6666666666666666
+AFTER AddToCom {Vertex 2 degree 2, member of comm 2} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+Controllo la comunita' { Community 1:	 members: 1, 2, , mod -0.02777777777777777	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+BEFORE AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, , mod -0.02777777777777777	}
+
+Vertici 1 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+
+Vertici 2 3
+Risultato aggiunta vertice Vertex 3 degree 2, member of comm 3 -0.6666666666666666
+AFTER AddToCom {Vertex 3 degree 2, member of comm 3} to this { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+Comunita' aggiornata { Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+Comunita' aggiornata { Community 3:	 members: 3, , mod 0.0	}
+Controllo la comunita' { Community 3:	 members: 3, , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: 3, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 3 degree 2, member of comm 3} from this { Community 3:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 3:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: 2, , mod 0.0	} in relazione al vertice Vertex 2 degree 2, member of comm 2
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+	BEFORE RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: 2, , mod 0.0	}
+	AFTER RemoveFromCom {Vertex 2 degree 2, member of comm 2} from this { Community 2:	 members: , mod 0.0	}
+←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+Controllo la comunita' { Community 2:	 members: , mod 0.0	} in relazione al vertice Vertex 3 degree 2, member of comm 3
+Comunita' aggiornata { Community 2:	 members: , mod 0.0	}
+{ Community 1:	 members: 1, 2, 3, , mod -0.16666666666666663	}
+{ Community 3:	 members: , mod 0.0	}
+{ Community 2:	 members: , mod 0.0	}
+
+
+Risultati:
+
+Whole Computation
+Modularity of List(1):	 0.0
+Modularity of List(1, 2):	 -0.02777778108914693
+Modularity of List(1, 2, 3):	 -0.0833333432674408
+Execution time: 1.104
+
+
+Migration
+Modularity of: List(1):	 0.0
+Modularity of: List(1, 2):	 -0.02777777777777777
+Modularity of: List(1, 2, 3):	 -0.16666666666666663
+Execution time: 0.428
+
+
