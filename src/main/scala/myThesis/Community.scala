@@ -52,4 +52,10 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
     }
   }
 
+  def scoreDifference(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
+    val reducingComp = membersReducingComp(ver, totEdges)
+    members += ver
+    (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
+  }
+
 }
