@@ -29,7 +29,7 @@ object MyMain {
       List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
     )
 
-    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
+    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
     val sc = new SparkContext(conf)
 
     Logger.getLogger("org").setLevel(Level.OFF)
@@ -42,6 +42,7 @@ object MyMain {
     val outputDir = new File(outputPath)
     outputDir.mkdirs()
     System.setProperty("output_path", outputPath)
+    saveSingleLine(s"File used $edgeFile\n")
 
     // create the graph from the file and add util data: (degree, commId)
     val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
@@ -49,9 +50,13 @@ object MyMain {
     val res1 = testBundleTestModularity(testBundle, graphLoaded)
     val res2 = testBundleTestMigration(testBundle, graphLoaded)
 
+    saveResultBulk(res1)
+    saveResultBulk(res2)
+
     res1.foreach(println)
     res2.foreach(println)
 
+    // Line to make program stop and being able to view SparkWebUI
     //    readInt()
   }
 
@@ -188,8 +193,14 @@ object MyMain {
   }
 
   def saveResultBulk(result: ListBuffer[String]): Unit = {
-    val pw = new PrintWriter(new File(System.getProperty("output_path") + "/Result.txt"))
-    result.foreach(line => pw.write(line + "\n"))
+    val pw = new PrintWriter(new FileOutputStream(System.getProperty("output_path") + "/Result.txt", true))
+    result.foreach(line => pw.append(line + "\n"))
+    pw.close()
+  }
+
+  def saveSingleLine(line: String): Unit = {
+    val pw = new PrintWriter(new FileOutputStream(System.getProperty("output_path") + "/Result.txt", true))
+    pw.append(line + "\n")
     pw.close()
   }
 
