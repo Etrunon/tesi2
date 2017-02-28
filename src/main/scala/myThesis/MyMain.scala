@@ -83,6 +83,7 @@ object MyMain {
 
     // Foreach community inside the bundle
     for (com <- testBundle) {
+      val innerTimeInit = System.currentTimeMillis()
 
       // Take only those Id which represent the delta since last computation
       com.filterNot(oldCom.contains(_)).foreach(id => {
@@ -115,7 +116,6 @@ object MyMain {
         //        commRDD.count()
       })
 
-      result += s"Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
 
       //Update Graph to mark all new comm members
       val newEdges = graph.edges
@@ -124,8 +124,8 @@ object MyMain {
         ver
       })
 
-      graph = Graph(newVertices, newEdges)
-
+      val innerTimeEnd = System.currentTimeMillis()
+      result += s"Time: ${innerTimeEnd - innerTimeInit}\t Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
       oldCom = com
     }
     val endDate = System.currentTimeMillis()
@@ -141,12 +141,15 @@ object MyMain {
     result += "Whole Computation"
 
     for (tmpComm <- testBundle) {
+      val innerTimeInit = System.currentTimeMillis()
       // (Degree, CommId)
       val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) =>
         new myVertex(degOpt.getOrElse(0).toLong / 2, if (tmpComm.contains(id)) 1L else id, id)
       }
       //      println(s"Modularity of $tmpComm:\t ${modularity(graph)}")
-      val s = s"Modularity of $tmpComm:\t ${modularity(tmpGraph)}"
+      val comModularity = modularity(tmpGraph)
+      val innerTimeEnd = System.currentTimeMillis()
+      val s = s"Time: ${innerTimeEnd - innerTimeInit}\tModularity of $tmpComm:\t $comModularity"
       result += s
     }
     val endDate = System.currentTimeMillis()
