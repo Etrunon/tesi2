@@ -18,15 +18,15 @@ object MyMain {
     val testBundle = List[List[Long]](
       List(1),
       List(1, 2),
-      List(1, 2, 3)
-      //      List(1, 2, 3, 4)
-      //      List(1, 2, 3, 4, 5)
-      //      List(1, 2, 3, 4, 5, 6),
-      //      List(1, 2, 3, 4, 5, 6, 14),
-      //      List(1, 2, 3, 4, 5, 6, 14, 15),
-      //      List(1, 2, 3, 4, 5, 6, 14, 15, 30),
-      //      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
-      //      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
+      List(1, 2, 3),
+      List(1, 2, 3, 4),
+      List(1, 2, 3, 4, 5),
+      List(1, 2, 3, 4, 5, 6),
+      List(1, 2, 3, 4, 5, 6, 14),
+      List(1, 2, 3, 4, 5, 6, 14, 15),
+      List(1, 2, 3, 4, 5, 6, 14, 15, 30),
+      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
+      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
     )
 
     val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
@@ -36,7 +36,7 @@ object MyMain {
     Logger.getLogger("akka").setLevel(Level.OFF)
 
     // Sets source folder
-    val edgeFile = "RunData/Input/processed_micro.csv"
+    val edgeFile = "RunData/Input/processed_mini1.csv"
     // Sets output folder
     val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
     val outputDir = new File(outputPath)
@@ -65,7 +65,7 @@ object MyMain {
     result += "Migration"
 
     // Generate a graph with the correct formatting
-    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    var graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
@@ -74,6 +74,7 @@ object MyMain {
     // Initialization of delta system. (The graph initially has one vertex for each community, so the first delta should be 0 )
     // Moreover modularity of a single vertex is zero by default
     var oldCom = List[Long](1L)
+    val newCom = 1L
 
     // Foreach community inside the bundle
     for (com <- testBundle) {
@@ -88,7 +89,6 @@ object MyMain {
         val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
         println(s"switchingVertex $switchingVertex")
         // CommId of the vertex will be 1, for testing purpose
-        val newCom = 1L
         // Count edges inside the old community to be subtracted and count edges inside the new community to be added
         //(OldCommunity, NewCommunity)
 
@@ -102,7 +102,7 @@ object MyMain {
           else (0, 0)
         }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
 
-        //ToDo fix bug. Non cambia la community al nodo 2, quindi non legge i nuovi archi. Merda
+        //ToDo fix bug. Non cambia la community al nodo 2, quindi non legge i nuovi archi. Merdad
         graph.triplets.map(tri => {
           if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == switchingVertex.comId) (List(tri), (1, 0))
           else if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == newCom) (List(tri), (0, 1))
@@ -141,6 +141,15 @@ object MyMain {
           c + v
         })
       }"
+
+      //Update Graph to mark all new comm members
+      val newEdges = graph.edges
+      val newVertices = graph.vertices.map(ver => {
+        if (com.contains(ver._2.verId)) ver._2.comId = newCom
+        ver
+      })
+
+      graph = Graph(newVertices, newEdges)
 
       oldCom = com
       println("ð" * 100 + "\n")
