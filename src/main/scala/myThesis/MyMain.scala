@@ -49,7 +49,6 @@ object MyMain {
     val res1 = testBundleTestModularity(testBundle, graphLoaded)
     val res2 = testBundleTestMigration(testBundle, graphLoaded)
 
-    println(s"\n\nRisultati:\n")
     res1.foreach(println)
     res2.foreach(println)
 
@@ -74,46 +73,30 @@ object MyMain {
     // Initialization of delta system. (The graph initially has one vertex for each community, so the first delta should be 0 )
     // Moreover modularity of a single vertex is zero by default
     var oldCom = List[Long](1L)
+    // CommId of the vertex will be 1, for testing purpose
     val newCom = 1L
 
     // Foreach community inside the bundle
     for (com <- testBundle) {
-
-      println(s"\n\n\n\n\nStep $com\n")
-      println(s"Delta: ${com.filterNot(oldCom.contains(_))}")
 
       // Take only those Id which represent the delta since last computation
       com.filterNot(oldCom.contains(_)).foreach(id => {
 
         // Take the reference of that vertex. In spite of ".first()" there should always be only one value
         val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
-        println(s"switchingVertex $switchingVertex")
-        // CommId of the vertex will be 1, for testing purpose
+
         // Count edges inside the old community to be subtracted and count edges inside the new community to be added
         //(OldCommunity, NewCommunity)
-
-        // Tried to optimize by filtering edges throws EmptyCollection error
-        //        val edgesChange = graph.triplets.filter(tri => tri.srcAttr == switchingVertex.verId || tri.dstAttr == switchingVertex.verId).map(tri =>
-        //          if (tri.srcId == switchingVertex.verId && tri.dstId == switchingVertex.comId) (1, 0) else if (tri.srcId == switchingVertex.verId && tri.dstId == newCom) (0, 1) else
-        //            (0, 0)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
-        val edgesChange = graph.triplets.map(tri => {
-          if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == switchingVertex.comId) (1, 0)
-          else if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == newCom) (0, 1)
+        val oldComPointer = commRDD.filter(c => c.comId == switchingVertex.comId).first()
+        val newComPointer = commRDD.filter(c => c.comId == newCom).first()
+        val edgesChange = graph.triplets.filter(tri => tri.srcId == switchingVertex.verId).map(tri => tri.dstAttr).map(dstId => {
+          if (oldComPointer.members.contains(dstId)) (1, 0)
+          else if (newComPointer.members.contains(dstId)) (0, 1)
           else (0, 0)
         }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
 
-        //ToDo fix bug. Non cambia la community al nodo 2, quindi non legge i nuovi archi. Merdad
-        graph.triplets.map(tri => {
-          if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == switchingVertex.comId) (List(tri), (1, 0))
-          else if (tri.srcId == switchingVertex.verId && tri.dstAttr.comId == newCom) (List(tri), (0, 1))
-          else (List(), (0, 0))
-        }).collect().foreach(println)
-
-        println(s"Tupla archi $edgesChange")
-
         // Foreach community inside the list, update modularity values in the communityRDD
         val commRDD1 = commRDD.map(c => {
-          println(s"Controllo la comunita' $c in relazione al vertice $switchingVertex")
           // If the community is the old one
           if (c.comId == switchingVertex.comId)
             c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
@@ -121,26 +104,13 @@ object MyMain {
           //Else if the community is the new one
           else if (c.comId == newCom)
             c.addToComm(switchingVertex, edgesChange._2, totEdges)
-          println(s"Comunita' aggiornata $c")
           c
         })
-        println(s"Commrdd1")
-        commRDD1.collect().foreach(println)
         commRDD = commRDD1
         //        commRDD.count()
       })
 
-      println(s"Stampo tutte le comunita' dopo il cambio di $com \n${commRDD.collect().foreach(println)}\nFineComunita'")
-
-      result += s"Modularity of: $com:\t ${
-        commRDD.map(c => {
-          println(s"c.modularity ${c.modularity}")
-          c.modularity
-        }).reduce((c, v) => {
-          println(s"c + v $c + $v = ${c + v}")
-          c + v
-        })
-      }"
+      result += s"Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
 
       //Update Graph to mark all new comm members
       val newEdges = graph.edges
@@ -152,11 +122,9 @@ object MyMain {
       graph = Graph(newVertices, newEdges)
 
       oldCom = com
-      println("ð" * 100 + "\n")
     }
     val endDate = System.currentTimeMillis()
     result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
-    commRDD.collect().foreach(println)
     result
   }
 
@@ -184,10 +152,7 @@ object MyMain {
   def modularity(graph: Graph[myVertex, Long]): Double = {
     val totEdges = graph.edges.count() / 2
 
-    //    graph.vertices.foreach(println)
     val primaParte = graph.mapTriplets(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1L else 0L).edges.reduce((a, b) => new Edge[Long](0, 0, a.attr + b.attr)).attr / 2
-
-    println(s"Prima parte $primaParte")
 
     //Lista di funzioni da riga-vertice a valore y da togliere alla mod.
     val functionList = graph.vertices.map(x =>
@@ -198,8 +163,6 @@ object MyMain {
     //Mappando ai vertici una funzione che mappa a tutte le funzioni nella mia lista ogni vertice e sommando tutto
     // a ritroso si ha il risultato
     val secondaParte = graph.vertices.map(ver => functionList.map(f => f(ver)).sum).reduce((a, b) => a + b)
-
-    println(s"Seconda Parte $secondaParte")
 
     (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
   }
