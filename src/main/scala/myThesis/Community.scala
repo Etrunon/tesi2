@@ -39,6 +39,7 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
   def addToComm(ver: myVertex, newEdges: Long, totEdges: Long): Unit = {
     val reducingComp = membersReducingComp(ver, totEdges)
     members += ver
+    ver.comId = comId
     modularity += (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
   }
 
@@ -53,7 +54,6 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
   }
 
   def scoreDifference(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
-    println(s"ScoreDifference:\t comm $this")
     val reducingComp = membersReducingComp(ver, totEdges)
     (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
   }
