@@ -53,8 +53,10 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
   def addToComm(ver: myVertex, newEdges: Long, totEdges: Long): Unit = {
     val reducingComp = membersReducingComp(ver, totEdges)
     members += ver
+    val newVertexModularity = (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
+    ver.potentialLoss = -newVertexModularity
     ver.comId = comId
-    modularity += (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
+    modularity += newVertexModularity
   }
 
   /**
@@ -85,6 +87,11 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
   def potentialVertexGain(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
     val reducingComp = membersReducingComp(ver, totEdges)
     (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
+  }
+
+  def potentialVertexLoss(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
+    val reducingComp = membersReducingComp(ver, totEdges)
+    -(1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
   }
 
   /**

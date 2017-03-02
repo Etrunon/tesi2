@@ -13,8 +13,9 @@ package myThesis
 @SerialVersionUID(123L)
 class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
   val degree: Long = deg
-  var comId: Long = cid
   val verId: Long = vid
+  var comId: Long = cid
+  var potentialLoss: Double = 0.0
 
   override def toString: String = s"Vertex $verId degree $degree, member of comm $comId"
 

@@ -148,8 +148,11 @@ object MyMain {
     vertexRDD.collect().foreach(println)
 
     var updated = false
-
+    var cycle = 0L
     do {
+      println(s"Cycle $cycle")
+
+      //Look through the frontier of each community and count how many edges they receive from which vertex
       val commNeighCounts = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
         val dstId: Long = j._2._1.dstAttr.verId
         val triplet: EdgeTriplet[myVertex, Long] = j._2._1
@@ -162,21 +165,25 @@ object MyMain {
       }).groupBy(tri => tri._2.comId).map(group => {
         //Count how many edges are from a vertex to the same community
         val currComm: Long = group._1
-        val boh = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
+        val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
           val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
           countedGroup
         })
-        (currComm, boh)
+        (currComm, edgeCount)
       })
 
       //      println(s"\n\n\nCommNeigh")
       //      println(s"${commNeighCounts.collect().foreach(println)}")
 
+      // Espose the index of community to operate a join
       val indexedComm = commRDD.map(co => (co.comId, co))
-
+      // Compute the improve in modularity from joining each of the vertex of the frontier
       val finalImprovement = commNeighCounts.join(indexedComm).map(union => {
         union._2._1.map(ver => {
-          (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges), List[(myVertex, Community)]((ver._1, union._2._2)))
+          println(s"Potential gain + potential loss ver ${ver._1}" +
+            //            s"\n${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges)} + ${ver._1.potentialLoss}" +
+            s"\n ${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss}")
+          (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss, List[(myVertex, Community)]((ver._1, union._2._2)))
         })
       }).reduce((a, b) => {
         (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
@@ -184,9 +191,9 @@ object MyMain {
         imp._1 > 0.0
       })
 
-      //          println(s"\n\n\nFinalImprovement \n ${finalImprovement}")
+      //      println(s"\n\nFinalImprovement")
+      //      finalImprovement.foreach(println)
 
-      //      val bannList = mutable.ListBuffer[Long]()
       val schedule = ListBuffer[(myVertex, Community)]()
       finalImprovement.keySet.toList.sorted.reverse.foreach(k => {
 
@@ -195,17 +202,14 @@ object MyMain {
         curr.foreach(change => {
           change.foreach(tuple => {
             tuple._2.modularity = k
-            // Add (node-> comm) to the schedule. Also symmetric operations
-            //            if (!bannList.contains(tuple._1.comId) && !bannList.contains(tuple._2.comId)) {
             result += tuple
-            //              bannList += (tuple._1.comId, tuple._2.comId)
           })
         })
         schedule.++=(result)
       })
 
-      println(s"\n\nSchedule")
-      schedule.foreach(println)
+      //      println(s"\n\nSchedule")
+      //      schedule.foreach(println)
       val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(schedule.toList, Set(), mutable.Map(), 0L)
 
       println(s"\n\nSchedule Optimized")
@@ -240,18 +244,18 @@ object MyMain {
         //        println(s"\n\nTolgo le comunita' vuote")
         commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
 
-        println(s"\n\nAfter Computation")
-        println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
-        commRDD.collect().foreach(println)
+        //        println(s"\n\nAfter Computation")
+        //        println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
+        //        commRDD.collect().foreach(println)
 
         vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
       }
 
       //Prova a mergiare le community
 
-      println("\n" + s"x" * 175 + "\n")
+      //      println("\n" + s"x" * 175 + "\n")
 
-
+      cycle += 1
     } while (updated)
 
     val endDate = System.currentTimeMillis
@@ -271,7 +275,7 @@ object MyMain {
     * @param commRDD    rdd of communities
     * @param changeList list of scheduled changes
     * @param totEdges   graph constant
-    * @return
+    * @return updated Community
     */
   def changeListDelta(graph: Graph[myVertex, VertexId], commRDD: RDD[Community], changeList: RDD[(myVertex, Community, (Long, Long))], totEdges: Long): RDD[Community] = {
 
@@ -284,14 +288,14 @@ object MyMain {
     val exposedComm = commRDD.map(c => (c.comId, c))
     //    exposedComm.collect().foreach(println)
 
-    println(s"\n\nAddChangeCom")
-    addChangeCom.map(ac => {
-      s"Comm ${ac._1} add ${ac._2._2}"
-    }).collect().foreach(println)
-    println(s"\n\nRemoveChangeComm")
-    removeChangeCom.map(rc => {
-      s"Comm ${rc._1} remove ${rc._2._2}"
-    }).collect().foreach(println)
+    //    println(s"\n\nAddChangeCom")
+    //    addChangeCom.map(ac => {
+    //      s"Comm ${ac._1} add ${ac._2._2}"
+    //    }).collect().foreach(println)
+    //    println(s"\n\nRemoveChangeComm")
+    //    removeChangeCom.map(rc => {
+    //      s"Comm ${rc._1} remove ${rc._2._2}"
+    //    }).collect().foreach(println)
     //    println(s"\n\nExposedComm")
     //    exposedComm.collect().foreach(println)
 
