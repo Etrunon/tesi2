@@ -72,7 +72,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
       val reducingComp = membersReducingComp(ver, totEdges)
       modularity += -(1.0 / (4.0 * totEdges)) * (-oldEdges - reducingComp)
     } else {
-      modularity = 0
+      modularity = 0.0
     }
   }
 
