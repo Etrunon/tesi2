@@ -1,10 +1,12 @@
 package myThesis
 
 import java.io._
+import java.util.Date
 
-import org.apache.spark.SparkContext
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -30,117 +32,93 @@ object MyMain {
       List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
       List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
     )
-    val list = List(
-      (0.7350893569, 1L, 3L),
-      (0.5344311538, 5L, 3L),
-      (0.5283814727, 5L, 6L),
-      (0.4748538056, 3L, 6L),
-      (0.4536287051, 7L, 3L),
-      (0.4519876163, 4L, 7L),
-      (0.3703841381, 3L, 2L),
-      (0.2295338532, 5L, 7L),
-      (0.1766977621, 5L, 4L)
 
-    )
+    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
+    val sc = new SparkContext(conf)
 
-    println(s"\nIniziale\n")
-    list.sorted.reverse.foreach(println)
-    val sceltaDinamica = schedulerDinamico(list.sorted.reverse, Set[Long](), 0)
-    println(s"\nFinale\n")
-    sceltaDinamica.foreach(println)
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
 
-    /*    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
-        val sc = new SparkContext(conf)
+    // Sets source folder
+    val edgeFile = "RunData/Input/processed_mini1.csv"
+    // Sets output folder
+    val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
+    val outputDir = new File(outputPath)
+    outputDir.mkdirs()
+    System.setProperty("output_path", outputPath)
+    saveSingleLine(s"File used $edgeFile\n")
 
-        Logger.getLogger("org").setLevel(Level.OFF)
-        Logger.getLogger("akka").setLevel(Level.OFF)
+    // create the graph from the file and add util data: (degree, commId)
+    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
-        // Sets source folder
-        val edgeFile = "RunData/Input/processed_mini1.csv"
-        // Sets output folder
-        val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
-        val outputDir = new File(outputPath)
-        outputDir.mkdirs()
-        System.setProperty("output_path", outputPath)
-        saveSingleLine(s"File used $edgeFile\n")
+    //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
+    //    val res2 = testBundleTestMigration(testBundle, graphLoaded)
+    //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
+    val res4 = strategicCommunityFinder(graphLoaded, sc)
 
-        // create the graph from the file and add util data: (degree, commId)
-        val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
+    //    saveResultBulk(res1)
+    //    saveResultBulk(res2)
+    //    saveResultBulk(res3)
+    saveResultBulk(res4)
 
-        //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
-        //    val res2 = testBundleTestMigration(testBundle, graphLoaded)
-        //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
-        val res4 = strategicCommunityFinder(graphLoaded, sc)
+    //    res1.foreach(println)
+    //    res2.foreach(println)
+    //    res3.foreach(println)
+    res4.foreach(println)
 
-        //    saveResultBulk(res1)
-        //    saveResultBulk(res2)
-        //    saveResultBulk(res3)
-        //    saveResultBulk(res4)
-
-        //    res1.foreach(println)
-        //    res2.foreach(println)
-        //    res3.foreach(println)
-        //    res4.foreach(println)
-
-        // Line to make program stop and being able to view SparkWebUI
-        //    readInt()*/
+    // Line to make program stop and being able to view SparkWebUI
+    //    readInt()
   }
 
-  def schedulerDinamico(list: List[(Double, Long, Long)], bannSet: Set[Long], tab: Int): List[(Double, Long, Long)] = {
-    var finale: List[(Double, Long, Long)] = List()
+  def schedulerDinamico(list: List[(myVertex, Community)], bannSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
+
+    var finale: List[(myVertex, Community)] = List()
     list match {
       case head :: Nil => {
-        if (!(bannSet.contains(head._2) || bannSet.contains(head._3))) {
-          println(" - " * tab + s"Last one $head is not banned in $bannSet")
+        if (!(bannSet.contains(head._1.comId) || bannSet.contains(head._2.comId))) {
           finale = List(head)
         }
         else {
-          println(" - " * tab + s"Last one $head is banned $bannSet")
           finale = List()
         }
       }
-
       case head :: tail => {
-
         // Else if the operation is banned return possible operation without this
-        if (bannSet.contains(head._2) || bannSet.contains(head._3)) {
-          println(" - " * tab + s"Head $head is banned in $bannSet")
-          finale = schedulerDinamico(tail, bannSet, tab + 1)
+        if (bannSet.contains(head._1.comId) || bannSet.contains(head._2.comId)) {
+          finale = schedulerDinamico(tail, bannSet, memoization, mapIndex + 1)
         }
         //If current operation is not banned
         else {
-          println(" - " * tab + s"Head $head is not banned in $bannSet")
           // Compute the values with current and without
-          val withFirst: List[(Double, Long, Long)] = List(head) ::: schedulerDinamico(tail, bannSet ++ Set(head._2, head._3), tab + 1)
-          val withoutFirst: List[(Double, Long, Long)] = schedulerDinamico(tail, bannSet, tab + 1)
+          val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
+            val x = List(head) ::: schedulerDinamico(tail, bannSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
+            memoization(mapIndex) = x
+            x
+          } else
+            memoization.getOrElse(mapIndex, null)
 
-          println(" - " * tab + s"WithFirst\t\t ${withFirst.map(x => x._1).sum}")
-          println(" - " * tab + s"WithoutFirst\t\t ${withoutFirst.map(x => x._1).sum}")
-          println(" - " * tab + s"WithFirst\t\t ${withFirst}")
-          println(" - " * tab + s"WithFirst\t\t ${withoutFirst}")
+          val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1, null) == null) {
+            val x = schedulerDinamico(tail, bannSet, memoization, mapIndex + 2)
+            memoization(mapIndex + 1) = x
+            x
+          } else
+            memoization.getOrElse(mapIndex + 1, null)
 
           // Whichever is bigger is returned
-          if (withFirst.map(x => x._1).sum > withoutFirst.map(x => x._1).sum) {
-            println(" - " * tab + s"I take $head")
+          if (withFirst.map(x => x._2.modularity).sum > withoutFirst.map(x => x._2.modularity).sum) {
             finale = withFirst
           }
           else {
-            println(" - " * tab + s"I don't take $head")
             finale = withoutFirst
           }
-          println(" - " * tab + s"")
-          println(" - " * tab + s"")
-
         }
       }
       case _ => {
-        println(" - " * tab + s"Non dovrei mai finire qui")
         finale = List()
       }
     }
     finale
   }
-
 
   def strategicCommunityFinder(graphLoaded: Graph[(Long, Long), Long], sc: SparkContext): ListBuffer[String] = {
     val initDate = System.currentTimeMillis
@@ -184,22 +162,6 @@ object MyMain {
         (currComm, boh)
       })
 
-
-      //      println(s"CorrectrNeighCounts")
-      //      correctNeighCounts.collect().foreach(println)
-
-      /*
-            // Takes a graph triplets rdd and return a map of communities with their frontier neighbours and how many times they link with each neighbour
-            val OLDcommNeighCounts = graph.triplets.groupBy(tri => {
-              tri.dstAttr.comId
-            }).map(groupedComm => {
-              (groupedComm._1, groupedComm._2.filterNot(f => f.srcAttr.comId == groupedComm._1).groupBy(tri => tri.srcAttr.verId).map(groupedTriplets => {
-                groupedTriplets._2.map(tri => {
-                  (tri.srcAttr, 1L)
-                }).reduce((a, b) => (a._1, a._2 + b._2))
-              }))
-            })
-      */
       //      println(s"\n\n\nCommNeigh")
       //      println(s"${commNeighCounts.collect().foreach(println)}")
 
@@ -211,34 +173,38 @@ object MyMain {
         })
       }).reduce((a, b) => {
         (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
+      }).filter(imp => {
+        imp._1 > 0.0
       })
 
-      //    println(s"\n\n\nFinalImprovement \n ${finalImprovement}")
+      //          println(s"\n\n\nFinalImprovement \n ${finalImprovement}")
 
-      val bannList = mutable.ListBuffer[Long]()
+      //      val bannList = mutable.ListBuffer[Long]()
       val schedule = ListBuffer[(myVertex, Community)]()
       finalImprovement.keySet.toList.sorted.reverse.foreach(k => {
 
         val curr = finalImprovement.get(k)
         val result = mutable.ListBuffer[(myVertex, Community)]()
-        curr.map(change => {
+        curr.foreach(change => {
           change.foreach(tuple => {
+            tuple._2.modularity = k
             // Add (node-> comm) to the schedule. Also symmetric operations
-
-
-            if (!bannList.contains(tuple._1.comId) && !bannList.contains(tuple._2.comId)) {
-              result += tuple
-              bannList += (tuple._1.comId, tuple._2.comId)
-            }
+            //            if (!bannList.contains(tuple._1.comId) && !bannList.contains(tuple._2.comId)) {
+            result += tuple
+            //              bannList += (tuple._1.comId, tuple._2.comId)
           })
-          schedule.++=(result)
         })
+        schedule.++=(result)
       })
 
-      //      println(s"\n\nScheduler")
-      //      schedule.foreach(v => println(s"vertex (${v._1.verId}, ${v._1.comId}) to comm ${v._2.comId}"))
+      println(s"\n\nSchedule")
+      schedule.foreach(println)
+      val scheduleOptimized: List[(myVertex, Community)] = schedulerDinamico(schedule.toList, Set(), mutable.Map(), 0L)
 
-      val scheduleWithPartingEdges = schedule.map(sc => {
+      println(s"\n\nSchedule Optimized")
+      scheduleOptimized.foreach(println)
+
+      val scheduleWithPartingEdges = scheduleOptimized.map(sc => {
         graph.triplets.map(tri => {
           if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._1.comId)
             (sc._1, sc._2, (1L, 0L))
