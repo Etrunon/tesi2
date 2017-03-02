@@ -1,12 +1,10 @@
 package myThesis
 
-import java.io.{File, _}
-import java.util.Date
+import java.io._
 
-import org.apache.log4j.{Level, Logger}
+import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -15,6 +13,8 @@ import scala.collection.mutable.ListBuffer
   * Created by etrunon on 13/02/17.
   */
 object MyMain {
+
+
   def main(args: Array[String]): Unit = {
     //List of communities to test code
     val testBundle = List[List[Long]](
@@ -30,43 +30,78 @@ object MyMain {
       List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
       List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
     )
+    val list = List(
+      (0.7350893569, 1L, 3L),
+      (0.1766977621, 5L, 4L),
+      (0.4748538056, 3L, 6L),
+      (0.5344311538, 5L, 3L),
+      (0.4519876163, 4L, 7L),
+      (0.4536287051, 7L, 3L),
+      (0.3703841381, 3L, 2L),
+      (0.5283814727, 5L, 6L),
+      (0.2295338532, 5L, 7L)
+    )
+    list.sorted.reverse.foreach(println)
+    val sceltaDinamica = schedulerDinamico(list.sorted.reverse, List[Long]())
+    sceltaDinamica.foreach(println)
 
-    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
-    val sc = new SparkContext(conf)
+    /*    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
+        val sc = new SparkContext(conf)
 
-    Logger.getLogger("org").setLevel(Level.OFF)
-    Logger.getLogger("akka").setLevel(Level.OFF)
+        Logger.getLogger("org").setLevel(Level.OFF)
+        Logger.getLogger("akka").setLevel(Level.OFF)
 
-    // Sets source folder
-    val edgeFile = "RunData/Input/processed_mini1.csv"
-    // Sets output folder
-    val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
-    val outputDir = new File(outputPath)
-    outputDir.mkdirs()
-    System.setProperty("output_path", outputPath)
-    saveSingleLine(s"File used $edgeFile\n")
+        // Sets source folder
+        val edgeFile = "RunData/Input/processed_mini1.csv"
+        // Sets output folder
+        val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
+        val outputDir = new File(outputPath)
+        outputDir.mkdirs()
+        System.setProperty("output_path", outputPath)
+        saveSingleLine(s"File used $edgeFile\n")
 
-    // create the graph from the file and add util data: (degree, commId)
-    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
+        // create the graph from the file and add util data: (degree, commId)
+        val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
-    //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
-    //    val res2 = testBundleTestMigration(testBundle, graphLoaded)
-    //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
-    val res4 = strategicCommunityFinder(graphLoaded, sc)
+        //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
+        //    val res2 = testBundleTestMigration(testBundle, graphLoaded)
+        //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
+        val res4 = strategicCommunityFinder(graphLoaded, sc)
 
-    //    saveResultBulk(res1)
-    //    saveResultBulk(res2)
-    //    saveResultBulk(res3)
-    saveResultBulk(res4)
+        //    saveResultBulk(res1)
+        //    saveResultBulk(res2)
+        //    saveResultBulk(res3)
+        //    saveResultBulk(res4)
 
-    //    res1.foreach(println)
-    //    res2.foreach(println)
-    //    res3.foreach(println)
-    res4.foreach(println)
+        //    res1.foreach(println)
+        //    res2.foreach(println)
+        //    res3.foreach(println)
+        //    res4.foreach(println)
 
-    // Line to make program stop and being able to view SparkWebUI
-    //    readInt()
+        // Line to make program stop and being able to view SparkWebUI
+        //    readInt()*/
   }
+
+  def schedulerDinamico(list: List[(Double, Long, Long)], bannList: List[Long]): List[(Double, Long, Long)] = {
+    list match {
+      case head :: tail => {
+        if (!(bannList.contains(head._2) || bannList.contains(head._3))) {
+          val withFirst: Double = head._1 + schedulerDinamico(tail, bannList ::: List(head._2, head._3)).map(x => x._1).sum
+          val withoutFirst: Double = schedulerDinamico(tail, bannList ::: List(head._2, head._3)).map(x => x._1).sum
+          if (withFirst > withoutFirst)
+            List(head) ::: schedulerDinamico(tail, bannList ::: List(head._2, head._3))
+          else
+            schedulerDinamico(list.tail, bannList ::: List(list.head._2, list.head._3))
+        } else
+          schedulerDinamico(list.tail, bannList ::: List(list.head._2, list.head._3))
+      }
+      case _ => {
+        List()
+      }
+
+    }
+  }
+
 
   def strategicCommunityFinder(graphLoaded: Graph[(Long, Long), Long], sc: SparkContext): ListBuffer[String] = {
     val initDate = System.currentTimeMillis
@@ -81,27 +116,55 @@ object MyMain {
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
-    println(s"\n\nComunita' divise per membri")
-    commRDD.map(c => c.members).collect().foreach(println)
+    var vertexRDD: RDD[(Long, myVertex)] = graph.vertices.map(v => (v._1, v._2))
+
+    //    println(s"\n\nComunita' divise per membri")
+    //    commRDD.map(c => c.members).collect().foreach(println)
+    println(s"\n\nVertici")
+    vertexRDD.collect().foreach(println)
 
     var updated = false
 
     do {
-      // Takes a graph triplets rdd and return a map of communities with their frontier neighbours and how many times they link with each neighbour
-      val commNeighCounts = graph.triplets.groupBy(tri => {
-        tri.dstAttr.comId
-      }).map(groupedComm => {
-        (groupedComm._1, groupedComm._2.filterNot(f => f.srcAttr.comId == groupedComm._1).groupBy(tri => tri.srcAttr.verId).map(groupedTriplets => {
-          groupedTriplets._2.map(tri => {
-            (tri.srcAttr, 1L)
-          }).reduce((a, b) => (a._1, a._2 + b._2))
-        }))
+      val commNeighCounts = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
+        val dstId: Long = j._2._1.dstAttr.verId
+        val triplet: EdgeTriplet[myVertex, Long] = j._2._1
+        val srcVertex: myVertex = j._2._2
+        (dstId, (triplet, srcVertex))
+      }).join(vertexRDD).map(k => {
+        val srcVer: myVertex = k._2._1._2
+        val dstVer: myVertex = k._2._2
+        (srcVer, dstVer)
+      }).groupBy(tri => tri._2.comId).map(group => {
+        //Count how many edges are from a vertex to the same community
+        val currComm: Long = group._1
+        val boh = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
+          val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
+          countedGroup
+        })
+        (currComm, boh)
       })
 
-      val indexedComm = commRDD.map(co => (co.comId, co))
 
-      //    println(s"\n\n\nCommNeigh")
-      //    println(s"${commNeighCounts.collect().foreach(println)}")
+      //      println(s"CorrectrNeighCounts")
+      //      correctNeighCounts.collect().foreach(println)
+
+      /*
+            // Takes a graph triplets rdd and return a map of communities with their frontier neighbours and how many times they link with each neighbour
+            val OLDcommNeighCounts = graph.triplets.groupBy(tri => {
+              tri.dstAttr.comId
+            }).map(groupedComm => {
+              (groupedComm._1, groupedComm._2.filterNot(f => f.srcAttr.comId == groupedComm._1).groupBy(tri => tri.srcAttr.verId).map(groupedTriplets => {
+                groupedTriplets._2.map(tri => {
+                  (tri.srcAttr, 1L)
+                }).reduce((a, b) => (a._1, a._2 + b._2))
+              }))
+            })
+      */
+      //      println(s"\n\n\nCommNeigh")
+      //      println(s"${commNeighCounts.collect().foreach(println)}")
+
+      val indexedComm = commRDD.map(co => (co.comId, co))
 
       val finalImprovement = commNeighCounts.join(indexedComm).map(union => {
         union._2._1.map(ver => {
@@ -133,8 +196,8 @@ object MyMain {
         })
       })
 
-      println(s"\n\nScheduler")
-      schedule.foreach(v => println(s"vertex (${v._1.verId}, ${v._1.comId}) to comm ${v._2.comId}"))
+      //      println(s"\n\nScheduler")
+      //      schedule.foreach(v => println(s"vertex (${v._1.verId}, ${v._1.comId}) to comm ${v._2.comId}"))
 
       val scheduleWithPartingEdges = schedule.map(sc => {
         graph.triplets.map(tri => {
@@ -147,25 +210,32 @@ object MyMain {
         }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
       })
 
-      println(s"\n\nSchedule following:")
-      schedule.foreach(println)
+      //            println(s"\n\nSchedule following:")
+      //            schedule.foreach(println)
 
       if (schedule.length < 1) {
         updated = false
       }
       else {
         updated = true
-        println(s"\n\nBefore applying deltas")
-        commRDD.collect().foreach(println)
+        //        println(s"\n\nBefore applying deltas")
+        //        commRDD.collect().foreach(println)
 
         commRDD = changeListDelta(graph, commRDD, sc.parallelize(scheduleWithPartingEdges), totEdges)
 
-        println(s"\n\nCome esce dall'aggiornamento")
-        commRDD.collect().foreach(println)
-        println(s"\n\nTolgo le comunita' vuote")
+        //        println(s"\n\nCome esce dall'aggiornamento")
+        //        commRDD.collect().foreach(println)
+        //        println(s"\n\nTolgo le comunita' vuote")
         commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
+
+        println(s"\n\nAfter Computation")
+        println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
         commRDD.collect().foreach(println)
+
+        vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
       }
+
+      println("\n" + s"x" * 175 + "\n")
 
 
     } while (updated == true)
@@ -252,11 +322,15 @@ object MyMain {
     //    exposedComm.collect().foreach(println)
 
     println(s"\n\nAddChangeCom")
-    addChangeCom.collect().foreach(println)
+    addChangeCom.map(ac => {
+      s"Comm ${ac._1} add ${ac._2._2}"
+    }).collect().foreach(println)
     println(s"\n\nRemoveChangeComm")
-    removeChangeCom.collect().foreach(println)
-    println(s"\n\nExposedComm")
-    exposedComm.collect().foreach(println)
+    removeChangeCom.map(rc => {
+      s"Comm ${rc._1} remove ${rc._2._2}"
+    }).collect().foreach(println)
+    //    println(s"\n\nExposedComm")
+    //    exposedComm.collect().foreach(println)
 
     //    println(s"Join?")
     /*
@@ -273,13 +347,15 @@ object MyMain {
         })
     */
 
-    println(s"\n\nPrimaJoin")
-    exposedComm.fullOuterJoin(addChangeCom).map(j => {
-      val index: Long = j._1
-      val community: Community = j._2._1.orNull
-      val add: (myVertex, Long) = j._2._2.orNull
-      (index, (community, add))
-    }).collect().foreach(println)
+    /*
+        //    println(s"\n\nPrimaJoin")
+        exposedComm.fullOuterJoin(addChangeCom).map(j => {
+          val index: Long = j._1
+          val community: Community = j._2._1.orNull
+          val add: (myVertex, Long) = j._2._2.orNull
+          (index, (community, add))
+        }).collect().foreach(println)
+    */
 
     val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.fullOuterJoin(addChangeCom).map(j => {
       val index: Long = j._1
@@ -430,25 +506,5 @@ object MyMain {
     pw.append(line + "\n")
     pw.close()
   }
-
-  /*
-    def changeCommunity(ver: (VertexId, (Long, Long)), comId: Long, comRDD: RDD[Community]): Unit = {
-      println(s"Changing $ver to comm $comId")
-
-      comRDD.map(com => {
-        if (com.comId == comId) {
-          println(s"Adding ver to comm ${com.comId}")
-          com.members += ver._1
-          //ToDo update modularity
-        } else if (com.comId == ver._2._2) {
-          println(s"Removing ver from com ${com.comId}")
-          com.members -= ver._1
-          // ToDo update modularity
-        }
-      })
-      //ToDo non viene lanciato l'update all'rdd
-    }
-  */
-
 
 }

@@ -26,5 +26,4 @@ class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
       case _ => false
     }
   }
-
 }
