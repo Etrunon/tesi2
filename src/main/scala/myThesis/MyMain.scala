@@ -70,7 +70,17 @@ object MyMain {
     //    readInt()
   }
 
-  def schedulerDinamico(list: List[(myVertex, Community)], bannSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
+  /**
+    * Function that given a list of possible operations returns a list of compatible operation which should result in the maximized gain
+    * It uses dynamic programming with memoization (in the memoization and mapIndex parameters)
+    *
+    * @param list
+    * @param bannSet
+    * @param memoization to be set mutable.Map() on external call
+    * @param mapIndex    to be set at 0 on external call
+    * @return
+    */
+  def dynamicScheduler(list: List[(myVertex, Community)], bannSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
 
     var finale: List[(myVertex, Community)] = List()
     list match {
@@ -85,20 +95,20 @@ object MyMain {
       case head :: tail => {
         // Else if the operation is banned return possible operation without this
         if (bannSet.contains(head._1.comId) || bannSet.contains(head._2.comId)) {
-          finale = schedulerDinamico(tail, bannSet, memoization, mapIndex + 1)
+          finale = dynamicScheduler(tail, bannSet, memoization, mapIndex + 1)
         }
         //If current operation is not banned
         else {
           // Compute the values with current and without
           val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
-            val x = List(head) ::: schedulerDinamico(tail, bannSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
+            val x = List(head) ::: dynamicScheduler(tail, bannSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
             memoization(mapIndex) = x
             x
           } else
             memoization.getOrElse(mapIndex, null)
 
           val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1, null) == null) {
-            val x = schedulerDinamico(tail, bannSet, memoization, mapIndex + 2)
+            val x = dynamicScheduler(tail, bannSet, memoization, mapIndex + 2)
             memoization(mapIndex + 1) = x
             x
           } else
@@ -112,9 +122,6 @@ object MyMain {
             finale = withoutFirst
           }
         }
-      }
-      case _ => {
-        finale = List()
       }
     }
     finale
@@ -169,7 +176,7 @@ object MyMain {
 
       val finalImprovement = commNeighCounts.join(indexedComm).map(union => {
         union._2._1.map(ver => {
-          (union._2._2.scoreDifference(ver._1, ver._2, totEdges), List[(myVertex, Community)]((ver._1, union._2._2)))
+          (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges), List[(myVertex, Community)]((ver._1, union._2._2)))
         })
       }).reduce((a, b) => {
         (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
@@ -199,7 +206,7 @@ object MyMain {
 
       println(s"\n\nSchedule")
       schedule.foreach(println)
-      val scheduleOptimized: List[(myVertex, Community)] = schedulerDinamico(schedule.toList, Set(), mutable.Map(), 0L)
+      val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(schedule.toList, Set(), mutable.Map(), 0L)
 
       println(s"\n\nSchedule Optimized")
       scheduleOptimized.foreach(println)
@@ -240,6 +247,8 @@ object MyMain {
         vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
       }
 
+      //Prova a mergiare le community
+
       println("\n" + s"x" * 175 + "\n")
 
 
@@ -251,72 +260,21 @@ object MyMain {
   }
 
 
-  def testBundleTestMigration(testBundle: List[List[Long]], graphLoaded: Graph[(Long, Long), Long]): ListBuffer[String] = {
-    //Timed execution
-    val initDate = System.currentTimeMillis
-    val degrees = graphLoaded.degrees
-    val result = ListBuffer[String]()
-    result += "Migration"
-
-    // Generate a graph with the correct formatting
-    var graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
-    // Saves edge count co a const
-    val totEdges = graph.edges.count() / 2
-
-    // Initialization of delta system. (The graph initially has one vertex for each community, so the first delta should be 0 )
-    // Moreover modularity of a single vertex is zero by default
-    var oldCom = List[Long](1L)
-    // CommId of the vertex will be 1, for testing purpose
-    val newCom = 1L
-
-    // Foreach community inside the bundle
-    for (com <- testBundle) {
-      val innerTimeInit = System.currentTimeMillis()
-
-      // Take only those Id which represent the delta since last computation
-      com.filterNot(oldCom.contains(_)).foreach(id => {
-
-        // Take the reference of that vertex. In spite of ".first()" there should always be only one value
-        val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
-
-        // Count edges inside the old community to be subtracted and count edges inside the new community to be added
-        //(OldCommunity, NewCommunity)
-        val oldComPointer = commRDD.filter(c => c.comId == switchingVertex.comId).first()
-        val newComPointer = commRDD.filter(c => c.comId == newCom).first()
-        val edgesChange = graph.triplets.filter(tri => tri.srcId == switchingVertex.verId).map(tri => tri.dstAttr).map(dstId => {
-          if (oldComPointer.members.contains(dstId)) (1, 0)
-          else if (newComPointer.members.contains(dstId)) (0, 1)
-          else (0, 0)
-        }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
-
-        // Foreach community inside the list, update modularity values in the communityRDD
-        commRDD = commRDD.map(c => {
-          // If the community is the old one
-          if (c.comId == switchingVertex.comId)
-            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
-
-          //Else if the community is the new one
-          else if (c.comId == newCom)
-            c.addToComm(switchingVertex, edgesChange._2, totEdges)
-          c
-        })
-      })
-
-      val innerTimeEnd = System.currentTimeMillis()
-      result += s"Time: ${innerTimeEnd - innerTimeInit}\t Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
-      oldCom = com
-    }
-    val endDate = System.currentTimeMillis()
-    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
-    result
-  }
-
+  /**
+    * Function that given a graph object, an RDD of Communities, an RDD of changes and the number of edges in the graph
+    * applies those changes one by one returning the modified Community RDD.
+    * The list of change can be described as (myVertex, Community, (Long, Long)):
+    * the vertex to change, towards that community bringing out this amount of edges from its current community (first member of the tuple)
+    * and bringing that amount of edges to the new one (second member of the tuple)
+    *
+    * @param graph
+    * @param commRDD
+    * @param changeList
+    * @param totEdges
+    * @return
+    */
   def changeListDelta(graph: Graph[myVertex, VertexId], commRDD: RDD[Community], changeList: RDD[(myVertex, Community, (Long, Long))], totEdges: Long): RDD[Community] = {
 
-    //    println(s"in funzione")
-    //    println(s"Changelist")
     // Select the community and the node to which add and the amount of new edges
     val addChangeCom = changeList.map(cl => (cl._2.comId, (cl._1, cl._3._2)))
     // Select the community from which the node has to be removed and the amount of edges that it brings out
@@ -336,31 +294,6 @@ object MyMain {
     }).collect().foreach(println)
     //    println(s"\n\nExposedComm")
     //    exposedComm.collect().foreach(println)
-
-    //    println(s"Join?")
-    /*
-        val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.fullOuterJoin(addChangeCom).map(j => {
-          val index: Long = j._1
-          val community: Community = j._2._1.orNull
-          val add: (myVertex, Long) = j._2._2.orNull
-          (index, (community, add))
-        }).fullOuterJoin(removeChangeCom).map( j => {
-          val community: Community = j._2._1.orNull._1
-          val add: (myVertex, Long) = j._2._1.orNull._2
-          val remove: (myVertex, Long) = j._2._2.orNull
-          (community, add, remove)
-        })
-    */
-
-    /*
-        //    println(s"\n\nPrimaJoin")
-        exposedComm.fullOuterJoin(addChangeCom).map(j => {
-          val index: Long = j._1
-          val community: Community = j._2._1.orNull
-          val add: (myVertex, Long) = j._2._2.orNull
-          (index, (community, add))
-        }).collect().foreach(println)
-    */
 
     val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.fullOuterJoin(addChangeCom).map(j => {
       val index: Long = j._1
@@ -437,6 +370,68 @@ object MyMain {
       result
     }
   */
+
+  def testBundleTestMigration(testBundle: List[List[Long]], graphLoaded: Graph[(Long, Long), Long]): ListBuffer[String] = {
+    //Timed execution
+    val initDate = System.currentTimeMillis
+    val degrees = graphLoaded.degrees
+    val result = ListBuffer[String]()
+    result += "Migration"
+
+    // Generate a graph with the correct formatting
+    var graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    // Obtain an RDD containing every community
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    // Saves edge count co a const
+    val totEdges = graph.edges.count() / 2
+
+    // Initialization of delta system. (The graph initially has one vertex for each community, so the first delta should be 0 )
+    // Moreover modularity of a single vertex is zero by default
+    var oldCom = List[Long](1L)
+    // CommId of the vertex will be 1, for testing purpose
+    val newCom = 1L
+
+    // Foreach community inside the bundle
+    for (com <- testBundle) {
+      val innerTimeInit = System.currentTimeMillis()
+
+      // Take only those Id which represent the delta since last computation
+      com.filterNot(oldCom.contains(_)).foreach(id => {
+
+        // Take the reference of that vertex. In spite of ".first()" there should always be only one value
+        val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
+
+        // Count edges inside the old community to be subtracted and count edges inside the new community to be added
+        //(OldCommunity, NewCommunity)
+        val oldComPointer = commRDD.filter(c => c.comId == switchingVertex.comId).first()
+        val newComPointer = commRDD.filter(c => c.comId == newCom).first()
+        val edgesChange = graph.triplets.filter(tri => tri.srcId == switchingVertex.verId).map(tri => tri.dstAttr).map(dstId => {
+          if (oldComPointer.members.contains(dstId)) (1, 0)
+          else if (newComPointer.members.contains(dstId)) (0, 1)
+          else (0, 0)
+        }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+
+        // Foreach community inside the list, update modularity values in the communityRDD
+        commRDD = commRDD.map(c => {
+          // If the community is the old one
+          if (c.comId == switchingVertex.comId)
+            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
+
+          //Else if the community is the new one
+          else if (c.comId == newCom)
+            c.addToComm(switchingVertex, edgesChange._2, totEdges)
+          c
+        })
+      })
+
+      val innerTimeEnd = System.currentTimeMillis()
+      result += s"Time: ${innerTimeEnd - innerTimeInit}\t Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
+      oldCom = com
+    }
+    val endDate = System.currentTimeMillis()
+    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
+    result
+  }
 
   def testBundleTestModularity(testBundle: List[List[Long]], graphLoaded: Graph[(Long, Long), Long]): ListBuffer[String] = {
     val initDate = System.currentTimeMillis()
