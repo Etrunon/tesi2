@@ -9,15 +9,15 @@ import scala.collection.mutable.ListBuffer
 /**
   * Object containing a fully independent community
   *
-  * @param cid   Comm id
-  * @param mod   Modularity value
-  * @param mlist MemberList
+  * @param cid        Comm id
+  * @param mod        Modularity value
+  * @param memberList MemberList
   */
 @SerialVersionUID(124L)
-class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Serializable {
+class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extends Serializable {
   val comId: Long = cid
   var modularity: Double = mod
-  val members: ListBuffer[myVertex] = mlist
+  val members: ListBuffer[myVertex] = memberList
 
   override def toString: String = s"{ Community $comId:\t members: ${shortMembers()}, mod $modularity\t}"
 
@@ -32,8 +32,8 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
   /**
     * Util function to compute the reducing component of the modularity formula
     *
-    * @param v1
-    * @param totEdges
+    * @param v1       vertex to which iterate
+    * @param totEdges graph constant
     * @return
     */
   private def membersReducingComp(v1: myVertex, totEdges: Long): Double = {
@@ -46,9 +46,9 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
   /**
     * Function that add the given vertex to the community and updates modularity as result
     *
-    * @param ver
-    * @param newEdges
-    * @param totEdges
+    * @param ver      vertex to add
+    * @param newEdges edges it brings
+    * @param totEdges graph constant
     */
   def addToComm(ver: myVertex, newEdges: Long, totEdges: Long): Unit = {
     val reducingComp = membersReducingComp(ver, totEdges)
@@ -60,9 +60,9 @@ class Community(cid: Long, mod: Double, mlist: ListBuffer[myVertex]) extends Ser
   /**
     * Remove the given vertex from the community and updates modularity score as result
     *
-    * @param ver
-    * @param oldEdges
-    * @param totEdges
+    * @param ver      vertex to remove
+    * @param oldEdges edges it brings out
+    * @param totEdges graph constant
     */
   def removeFromComm(ver: myVertex, oldEdges: Long, totEdges: Long): Unit = {
     members -= ver

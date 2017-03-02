@@ -18,20 +18,22 @@ object MyMain {
 
 
   def main(args: Array[String]): Unit = {
-    //List of communities to test code
-    val testBundle = List[List[Long]](
-      List(1),
-      List(1, 2),
-      List(1, 2, 3),
-      List(1, 2, 3, 4),
-      List(1, 2, 3, 4, 5),
-      List(1, 2, 3, 4, 5, 6),
-      List(1, 2, 3, 4, 5, 6, 14),
-      List(1, 2, 3, 4, 5, 6, 14, 15),
-      List(1, 2, 3, 4, 5, 6, 14, 15, 30),
-      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
-      List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
-    )
+    /*
+        //List of communities to test code
+        val testBundle = List[List[Long]](
+          List(1),
+          List(1, 2),
+          List(1, 2, 3),
+          List(1, 2, 3, 4),
+          List(1, 2, 3, 4, 5),
+          List(1, 2, 3, 4, 5, 6),
+          List(1, 2, 3, 4, 5, 6, 14),
+          List(1, 2, 3, 4, 5, 6, 14, 15),
+          List(1, 2, 3, 4, 5, 6, 14, 15, 30),
+          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
+          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
+        )
+    */
 
     val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
     val sc = new SparkContext(conf)
@@ -74,41 +76,40 @@ object MyMain {
     * Function that given a list of possible operations returns a list of compatible operation which should result in the maximized gain
     * It uses dynamic programming with memoization (in the memoization and mapIndex parameters)
     *
-    * @param list
-    * @param bannSet
+    * @param list        list of operation (vertex to change, community toward change it)
+    * @param banSet      to be set Set(), on external call set of banned communities
     * @param memoization to be set mutable.Map() on external call
     * @param mapIndex    to be set at 0 on external call
     * @return
     */
-  def dynamicScheduler(list: List[(myVertex, Community)], bannSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
+  def dynamicScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
 
     var finale: List[(myVertex, Community)] = List()
     list match {
-      case head :: Nil => {
-        if (!(bannSet.contains(head._1.comId) || bannSet.contains(head._2.comId))) {
+      case head :: Nil =>
+        if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
           finale = List(head)
         }
         else {
           finale = List()
         }
-      }
-      case head :: tail => {
+      case head :: tail =>
         // Else if the operation is banned return possible operation without this
-        if (bannSet.contains(head._1.comId) || bannSet.contains(head._2.comId)) {
-          finale = dynamicScheduler(tail, bannSet, memoization, mapIndex + 1)
+        if (banSet.contains(head._1.comId) || banSet.contains(head._2.comId)) {
+          finale = dynamicScheduler(tail, banSet, memoization, mapIndex + 1)
         }
         //If current operation is not banned
         else {
           // Compute the values with current and without
           val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
-            val x = List(head) ::: dynamicScheduler(tail, bannSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
+            val x = List(head) ::: dynamicScheduler(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
             memoization(mapIndex) = x
             x
           } else
             memoization.getOrElse(mapIndex, null)
 
           val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1, null) == null) {
-            val x = dynamicScheduler(tail, bannSet, memoization, mapIndex + 2)
+            val x = dynamicScheduler(tail, banSet, memoization, mapIndex + 2)
             memoization(mapIndex + 1) = x
             x
           } else
@@ -122,7 +123,6 @@ object MyMain {
             finale = withoutFirst
           }
         }
-      }
     }
     finale
   }
@@ -134,7 +134,7 @@ object MyMain {
     result += "Strategic Community Finder"
 
     // Generate a graph with the correct formatting
-    var graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
@@ -252,7 +252,7 @@ object MyMain {
       println("\n" + s"x" * 175 + "\n")
 
 
-    } while (updated == true)
+    } while (updated)
 
     val endDate = System.currentTimeMillis
     result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
@@ -267,10 +267,10 @@ object MyMain {
     * the vertex to change, towards that community bringing out this amount of edges from its current community (first member of the tuple)
     * and bringing that amount of edges to the new one (second member of the tuple)
     *
-    * @param graph
-    * @param commRDD
-    * @param changeList
-    * @param totEdges
+    * @param graph      graph
+    * @param commRDD    rdd of communities
+    * @param changeList list of scheduled changes
+    * @param totEdges   graph constant
     * @return
     */
   def changeListDelta(graph: Graph[myVertex, VertexId], commRDD: RDD[Community], changeList: RDD[(myVertex, Community, (Long, Long))], totEdges: Long): RDD[Community] = {
@@ -312,8 +312,6 @@ object MyMain {
       val add = j._2
       val remove = j._3
 
-      if (comm == null)
-        null
       if (add != null)
         comm.addToComm(add._1, add._2, totEdges)
       if (remove != null)
@@ -379,7 +377,7 @@ object MyMain {
     result += "Migration"
 
     // Generate a graph with the correct formatting
-    var graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
@@ -476,13 +474,13 @@ object MyMain {
   }
 
   def readGraph(sc: SparkContext, edgeFile: String): Graph[(Long, Long), Long] = {
-    val edgedelimiter = ","
+    val edgeDelimiter = ","
 
     // Parse the input file. If there are 2 int on each line edge weight is 1 by default. If there are 3 input on each line
     // edge weight is the last one.
     // If there are 0, 1 or more than 3 element per row throw exception
     val edgeRDD = sc.textFile(edgeFile).map(row => {
-      val tokens = row.split(edgedelimiter).map(_.trim())
+      val tokens = row.split(edgeDelimiter).map(_.trim())
       tokens.length match {
         case 2 =>
           new Edge(tokens(0).toLong, tokens(1).toLong, 1L)
