@@ -32,17 +32,21 @@ object MyMain {
     )
     val list = List(
       (0.7350893569, 1L, 3L),
-      (0.1766977621, 5L, 4L),
-      (0.4748538056, 3L, 6L),
       (0.5344311538, 5L, 3L),
-      (0.4519876163, 4L, 7L),
-      (0.4536287051, 7L, 3L),
-      (0.3703841381, 3L, 2L),
       (0.5283814727, 5L, 6L),
-      (0.2295338532, 5L, 7L)
+      (0.4748538056, 3L, 6L),
+      (0.4536287051, 7L, 3L),
+      (0.4519876163, 4L, 7L),
+      (0.3703841381, 3L, 2L),
+      (0.2295338532, 5L, 7L),
+      (0.1766977621, 5L, 4L)
+
     )
+
+    println(s"\nIniziale\n")
     list.sorted.reverse.foreach(println)
-    val sceltaDinamica = schedulerDinamico(list.sorted.reverse, List[Long]())
+    val sceltaDinamica = schedulerDinamico(list.sorted.reverse, Set[Long](), 0)
+    println(s"\nFinale\n")
     sceltaDinamica.foreach(println)
 
     /*    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
@@ -82,24 +86,59 @@ object MyMain {
         //    readInt()*/
   }
 
-  def schedulerDinamico(list: List[(Double, Long, Long)], bannList: List[Long]): List[(Double, Long, Long)] = {
+  def schedulerDinamico(list: List[(Double, Long, Long)], bannSet: Set[Long], tab: Int): List[(Double, Long, Long)] = {
+    var finale: List[(Double, Long, Long)] = List()
     list match {
-      case head :: tail => {
-        if (!(bannList.contains(head._2) || bannList.contains(head._3))) {
-          val withFirst: Double = head._1 + schedulerDinamico(tail, bannList ::: List(head._2, head._3)).map(x => x._1).sum
-          val withoutFirst: Double = schedulerDinamico(tail, bannList ::: List(head._2, head._3)).map(x => x._1).sum
-          if (withFirst > withoutFirst)
-            List(head) ::: schedulerDinamico(tail, bannList ::: List(head._2, head._3))
-          else
-            schedulerDinamico(list.tail, bannList ::: List(list.head._2, list.head._3))
-        } else
-          schedulerDinamico(list.tail, bannList ::: List(list.head._2, list.head._3))
-      }
-      case _ => {
-        List()
+      case head :: Nil => {
+        if (!(bannSet.contains(head._2) || bannSet.contains(head._3))) {
+          println(" - " * tab + s"Last one $head is not banned in $bannSet")
+          finale = List(head)
+        }
+        else {
+          println(" - " * tab + s"Last one $head is banned $bannSet")
+          finale = List()
+        }
       }
 
+      case head :: tail => {
+
+        // Else if the operation is banned return possible operation without this
+        if (bannSet.contains(head._2) || bannSet.contains(head._3)) {
+          println(" - " * tab + s"Head $head is banned in $bannSet")
+          finale = schedulerDinamico(tail, bannSet, tab + 1)
+        }
+        //If current operation is not banned
+        else {
+          println(" - " * tab + s"Head $head is not banned in $bannSet")
+          // Compute the values with current and without
+          val withFirst: List[(Double, Long, Long)] = List(head) ::: schedulerDinamico(tail, bannSet ++ Set(head._2, head._3), tab + 1)
+          val withoutFirst: List[(Double, Long, Long)] = schedulerDinamico(tail, bannSet, tab + 1)
+
+          println(" - " * tab + s"WithFirst\t\t ${withFirst.map(x => x._1).sum}")
+          println(" - " * tab + s"WithoutFirst\t\t ${withoutFirst.map(x => x._1).sum}")
+          println(" - " * tab + s"WithFirst\t\t ${withFirst}")
+          println(" - " * tab + s"WithFirst\t\t ${withoutFirst}")
+
+          // Whichever is bigger is returned
+          if (withFirst.map(x => x._1).sum > withoutFirst.map(x => x._1).sum) {
+            println(" - " * tab + s"I take $head")
+            finale = withFirst
+          }
+          else {
+            println(" - " * tab + s"I don't take $head")
+            finale = withoutFirst
+          }
+          println(" - " * tab + s"")
+          println(" - " * tab + s"")
+
+        }
+      }
+      case _ => {
+        println(" - " * tab + s"Non dovrei mai finire qui")
+        finale = List()
+      }
     }
+    finale
   }
 
 
