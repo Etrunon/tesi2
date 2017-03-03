@@ -19,7 +19,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
   var modularity: Double = mod
   val members: ListBuffer[myVertex] = memberList
 
-  override def toString: String = s"{ Community $comId:\t members: ${shortMembers()}, mod $modularity\t}"
+  override def toString: String = s"{ Community $comId:\t\t mod $modularity\t members: ${shortMembers()}\t}"
 
   def shortMembers(): String = {
     var s: String = ""
@@ -87,11 +87,6 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
   def potentialVertexGain(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
     val reducingComp = membersReducingComp(ver, totEdges)
     (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
-  }
-
-  def potentialVertexLoss(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
-    val reducingComp = membersReducingComp(ver, totEdges)
-    -(1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
   }
 
   /**
