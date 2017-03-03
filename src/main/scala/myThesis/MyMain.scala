@@ -127,6 +127,26 @@ object MyMain {
     finale
   }
 
+  def pruneLeaves(graph: Graph[myVertex, Long], sc: SparkContext): Graph[myVertex, Long] = {
+    var removed = false
+    var graph2 = graph
+    do {
+      //Dirty trick, as spark can't broadcast an empty set. I put a value -1 in a set and add it also
+      val leaves = sc.broadcast(Set(-1L) ++ graph2.degrees.filter(v => v._2 / 2 <= 1).map(v => Set(v._1)).reduce((a, b) => a ++ b))
+      println(s"Removing edges: ${leaves.value}")
+      if (leaves.value.size == 1) {
+        removed = true
+        val newVertices = graph2.vertices.filter { case (id, ver) => !leaves.value.contains(id) }
+        val newEdges = graph2.edges.filter(e => !leaves.value.contains(e.srcId) && !leaves.value.contains(e.dstId))
+
+        graph2 = Graph(newVertices, newEdges)
+      }
+
+    } while (removed)
+
+    graph2
+  }
+
   def strategicCommunityFinder(graphLoaded: Graph[(Long, Long), Long], sc: SparkContext): ListBuffer[String] = {
     val initDate = System.currentTimeMillis
     val degrees = graphLoaded.degrees
@@ -134,7 +154,9 @@ object MyMain {
     result += "Strategic Community Finder"
 
     // Generate a graph with the correct formatting
-    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph = pruneLeaves(tmpGraph, sc)
+
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
@@ -152,134 +174,133 @@ object MyMain {
     do {
       println(s"Cycle $cycle")
 
-      /*
-            //Look through the frontier of each community and count how many edges they receive from which vertex
-            val commNeighCounts = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
-              val dstId: Long = j._2._1.dstAttr.verId
-              val triplet: EdgeTriplet[myVertex, Long] = j._2._1
-              val srcVertex: myVertex = j._2._2
-              (dstId, (triplet, srcVertex))
-            }).join(vertexRDD).map(k => {
-              val srcVer: myVertex = k._2._1._2
-              val dstVer: myVertex = k._2._2
-              (srcVer, dstVer)
-            }).groupBy(tri => tri._2.comId).map(group => {
-              //Count how many edges are from a vertex to the same community
-              val currComm: Long = group._1
-              val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
-                val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
-                countedGroup
-              })
-              (currComm, edgeCount)
-            })
-
-            //      println(s"\n\n\nCommNeigh")
-            //      println(s"${commNeighCounts.collect().foreach(println)}")
-
-            // Espose the index of community to operate a join
-            val indexedComm = commRDD.map(co => (co.comId, co))
-            // Compute the improve in modularity from joining each of the vertex of the frontier
-            val finalImprovement = commNeighCounts.join(indexedComm).map(union => {
-              union._2._1.map(ver => {
-                //          println(s"Potential gain + potential loss ver ${ver._1}" +
-                //            s"\n${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges)} + ${ver._1.potentialLoss}" +
-                //            s"\n ${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss}")
-                (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss, List[(myVertex, Community)]((ver._1, union._2._2)))
-              })
-            }).reduce((a, b) => {
-              (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
-            }).filter(imp => {
-              imp._1 > 0.0
-            })
-
-            //      println(s"\n\nFinalImprovement")
-            //      finalImprovement.foreach(println)
-
-            val schedule = ListBuffer[(myVertex, Community)]()
-            finalImprovement.keySet.toList.sorted.reverse.foreach(k => {
-
-              val curr = finalImprovement.get(k)
-              val result = mutable.ListBuffer[(myVertex, Community)]()
-              curr.foreach(change => {
-                change.foreach(tuple => {
-                  tuple._2.modularity = k
-                  result += tuple
-                })
-              })
-              schedule.++=(result)
-            })
-
-            //      println(s"\n\nSchedule")
-            //      schedule.foreach(println)
-            val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(schedule.toList, Set(), mutable.Map(), 0L)
-
-            //      println(s"\n\nSchedule Optimized")
-            //      scheduleOptimized.foreach(println)
-
-            val scheduleWithPartingEdges = scheduleOptimized.map(sc => {
-              graph.triplets.map(tri => {
-                if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._1.comId)
-                  (sc._1, sc._2, (1L, 0L))
-                else if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._2.comId)
-                  (sc._1, sc._2, (0L, 1L))
-                else
-                  (sc._1, sc._2, (0L, 0L))
-              }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
-            })
-
-            if (schedule.length < 1) {
-
-              updated = false
-            }
-            else {
-              updated = true
-              //        println(s"\n\nBefore applying deltas")
-              //        commRDD.collect().foreach(println)
-
-              commRDD = changeListDelta(graph, commRDD, sc.parallelize(scheduleWithPartingEdges), totEdges)
-
-              //        println(s"\n\nCome esce dall'aggiornamento")
-              //        commRDD.collect().foreach(println)
-              //        println(s"\n\nTolgo le comunita' vuote")
-              commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
-
-              //                println(s"\n\nAfter Computation")
-              //                println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
-              //                commRDD.collect().foreach(println)
-
-              vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
-            }
-      */
-
-      //Prova a mergiare le community
-
-      // Per ogni comunita' guardo quanti link ha in uscita sulle altre comunita'
-      // (comId, Map( (comId, #link, Map(vertice -> #link)))
-      val exposedSrcComm = graph.triplets.map(tri => (tri.srcAttr.comId, tri))
-      val exposedDstComm = graph.triplets.map(tri => (tri.dstAttr.comId, tri))
-      val exposedComm = commRDD.map(c => (c.comId, c))
-
-      val joinableSrc = exposedSrcComm.join(exposedComm).map(comTri => ((comTri._2._1.srcAttr.verId, comTri._2._1.dstAttr.verId), comTri._2))
-      val joinableDst = exposedDstComm.join(exposedComm).map(comTri => ((comTri._2._1.srcAttr.verId, comTri._2._1.dstAttr.verId), comTri._2))
-
-      val equindi = joinableSrc.join(joinableDst).map(comTriCom => {
-        val srcCom: Community = comTriCom._2._1._2
-        val triplet: EdgeTriplet[myVertex, Long] = comTriCom._2._1._1
-        val dstCom: Community = comTriCom._2._2._2
-
-        (srcCom, triplet, dstCom)
-      }).groupBy(comTriCom => comTriCom._1).map(x => {
-        val commResult = x._2.map(outGoing => {
-          //          List(outGoing._3, outGoing._2.srcAttr)
-          List((outGoing._3.comId, outGoing._2.srcAttr.verId))
-        }).reduce((a, b) => a ::: b)
-        List(x._1, commResult)
-      }).reduce((a, b) => {
-        a ::: b
+      //Look through the frontier of each community and count how many edges they receive from which vertex
+      val commNeighCounts = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
+        val dstId: Long = j._2._1.dstAttr.verId
+        val triplet: EdgeTriplet[myVertex, Long] = j._2._1
+        val srcVertex: myVertex = j._2._2
+        (dstId, (triplet, srcVertex))
+      }).join(vertexRDD).map(k => {
+        val srcVer: myVertex = k._2._1._2
+        val dstVer: myVertex = k._2._2
+        (srcVer, dstVer)
+      }).groupBy(tri => tri._2.comId).map(group => {
+        //Count how many edges are from a vertex to the same community
+        val currComm: Long = group._1
+        val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
+          val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
+          countedGroup
+        })
+        (currComm, edgeCount)
       })
 
-      //      equindi.collect().foreach(println)
-      equindi.foreach(println)
+      //      println(s"\n\n\nCommNeigh")
+      //      println(s"${commNeighCounts.collect().foreach(println)}")
+
+      // Espose the index of community to operate a join
+      val indexedComm = commRDD.map(co => (co.comId, co))
+      // Compute the improve in modularity from joining each of the vertex of the frontier
+      val finalImprovement = commNeighCounts.join(indexedComm).map(union => {
+        union._2._1.map(ver => {
+          //          println(s"Potential gain + potential loss ver ${ver._1}" +
+          //            s"\n${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges)} + ${ver._1.potentialLoss}" +
+          //            s"\n ${union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss}")
+          (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss, List[(myVertex, Community)]((ver._1, union._2._2)))
+        })
+      }).reduce((a, b) => {
+        (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
+      }).filter(imp => {
+        imp._1 > 0.0
+      })
+
+      //      println(s"\n\nFinalImprovement")
+      //      finalImprovement.foreach(println)
+
+      val schedule = ListBuffer[(myVertex, Community)]()
+      finalImprovement.keySet.toList.sorted.reverse.foreach(k => {
+
+        val curr = finalImprovement.get(k)
+        val result = mutable.ListBuffer[(myVertex, Community)]()
+        curr.foreach(change => {
+          change.foreach(tuple => {
+            tuple._2.modularity = k
+            result += tuple
+          })
+        })
+        schedule.++=(result)
+      })
+
+      //      println(s"\n\nSchedule")
+      //      schedule.foreach(println)
+      val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(schedule.toList, Set(), mutable.Map(), 0L)
+
+      println(s"\n\nSchedule Optimized")
+      scheduleOptimized.foreach(println)
+
+      val scheduleWithPartingEdges = scheduleOptimized.map(sc => {
+        graph.triplets.map(tri => {
+          if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._1.comId)
+            (sc._1, sc._2, (1L, 0L))
+          else if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._2.comId)
+            (sc._1, sc._2, (0L, 1L))
+          else
+            (sc._1, sc._2, (0L, 0L))
+        }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
+      })
+
+      if (schedule.length < 1) {
+
+        updated = false
+      }
+      else {
+        updated = true
+        //        println(s"\n\nBefore applying deltas")
+        //        commRDD.collect().foreach(println)
+
+        commRDD = changeListDelta(graph, commRDD, sc.parallelize(scheduleWithPartingEdges), totEdges)
+
+        //        println(s"\n\nCome esce dall'aggiornamento")
+        //        commRDD.collect().foreach(println)
+        //        println(s"\n\nTolgo le comunita' vuote")
+        commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
+
+        println(s"\n\nAfter Computation")
+        println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
+        commRDD.collect().foreach(println)
+
+        vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
+      }
+
+      //Prova a mergiare le community
+      // Per ogni comunita' guardo quanti link ha in uscita sulle altre comunita'
+      // (comId, Map( (comId, #link, Map(vertice -> #link)))
+      /*
+            val exposedSrcComm = graph.triplets.map(tri => (tri.srcAttr.comId, tri))
+            val exposedDstComm = graph.triplets.map(tri => (tri.dstAttr.comId, tri))
+            val exposedComm = commRDD.map(c => (c.comId, c))
+
+            val joinableSrc = exposedSrcComm.join(exposedComm).map(comTri => ((comTri._2._1.srcAttr.verId, comTri._2._1.dstAttr.verId), comTri._2))
+            val joinableDst = exposedDstComm.join(exposedComm).map(comTri => ((comTri._2._1.srcAttr.verId, comTri._2._1.dstAttr.verId), comTri._2))
+
+            val equindi = joinableSrc.join(joinableDst).map(comTriCom => {
+              val srcCom: Community = comTriCom._2._1._2
+              val triplet: EdgeTriplet[myVertex, Long] = comTriCom._2._1._1
+              val dstCom: Community = comTriCom._2._2._2
+
+              (srcCom, triplet, dstCom)
+            }).groupBy(comTriCom => comTriCom._1).map(x => {
+              val commResult = x._2.map(outGoing => {
+                //          List(outGoing._3, outGoing._2.srcAttr)
+                List((outGoing._3.comId, outGoing._2.srcAttr.verId))
+              }).reduce((a, b) => a ::: b)
+              List(x._1, commResult)
+            }).reduce((a, b) => {
+              a ::: b
+            })
+
+            //      equindi.collect().foreach(println)
+            equindi.foreach(println)
+      */
 
       println("\n" + s"x" * 175 + "\n")
 
