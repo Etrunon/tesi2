@@ -85,6 +85,7 @@ object MyMain {
   def dynamicScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
 
     var finale: List[(myVertex, Community)] = List()
+    println(s"to be scheduled List $list")
     list match {
       case head :: Nil =>
         if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
@@ -123,27 +124,34 @@ object MyMain {
             finale = withoutFirst
           }
         }
+      case Nil =>
     }
     finale
   }
 
+  /**
+    * Functions to prune leaves recursively from the graph. It takes as input a graph "undirected" (each edge has its symmetric) and prune the present leaves
+    *
+    * @param graph to be pruned
+    * @param sc    spark context, to broadcast a filterlist
+    * @return
+    */
   def pruneLeaves(graph: Graph[myVertex, Long], sc: SparkContext): Graph[myVertex, Long] = {
     var removed = false
     var graph2 = graph
+
     do {
-      //Dirty trick, as spark can't broadcast an empty set. I put a value -1 in a set and add it also
-      val leaves = sc.broadcast(Set(-1L) ++ graph2.degrees.filter(v => v._2 / 2 <= 1).map(v => Set(v._1)).reduce((a, b) => a ++ b))
-      println(s"Removing edges: ${leaves.value}")
-      if (leaves.value.size == 1) {
+      removed = false
+      val leaves = graph2.degrees.filter(v => v._2 / 2 <= 1)
+      if (leaves.count() > 0) {
+        val leavesBC = sc.broadcast(leaves.map(v => Set(v._1)).reduce((a, b) => a ++ b))
         removed = true
-        val newVertices = graph2.vertices.filter { case (id, ver) => !leaves.value.contains(id) }
-        val newEdges = graph2.edges.filter(e => !leaves.value.contains(e.srcId) && !leaves.value.contains(e.dstId))
+        val newVertices = graph2.vertices.filter(v => !leavesBC.value.contains(v._2.verId))
+        val newEdges = graph2.edges.filter(e => !leavesBC.value.contains(e.srcId) && !leavesBC.value.contains(e.dstId))
 
         graph2 = Graph(newVertices, newEdges)
       }
-
     } while (removed)
-
     graph2
   }
 
@@ -156,6 +164,9 @@ object MyMain {
     // Generate a graph with the correct formatting
     val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
     val graph = pruneLeaves(tmpGraph, sc)
+
+    println(s"Vertices")
+    graph.vertices.collect().foreach(println)
 
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
@@ -306,6 +317,9 @@ object MyMain {
 
       cycle += 1
     } while (updated)
+
+    result += "Final score"
+    commRDD.collect().foreach(c => result += c.toString)
 
     val endDate = System.currentTimeMillis
     result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
