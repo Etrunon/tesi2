@@ -3,6 +3,9 @@ package myThesis
 import java.io._
 import java.util.Date
 
+import myThesis.BulkModularity.testBundleTestModularity
+import myThesis.MigrationModularity.testBundleTestMigration
+import myThesis.UtilityFunctions.{readGraph, saveResultBulk, saveSingleLine}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
@@ -55,19 +58,19 @@ object MyMain {
     // create the graph from the file and add util data: (degree, commId)
     val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
-    //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
-    //        val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
+    val res1 = testBundleTestModularity(testBundle, graphLoaded)
+    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
     //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
     val res4 = strategicCommunityFinder(graphLoaded, sc)
 
-    //    saveResultBulk(res1)
-    //        saveResultBulk(res2)
-    //    saveResultBulk(res3)
+    saveResultBulk(res1)
+    saveResultBulk(res2)
+    //        saveResultBulk(res3)
     saveResultBulk(res4)
 
-    //    res1.foreach(println)
-    //        res2.foreach(println)
-    //    res3.foreach(println)
+    res1.foreach(println)
+    res2.foreach(println)
+    //        res3.foreach(println)
     res4.foreach(println)
 
     // Line to make program stop and being able to view SparkWebUI
@@ -489,180 +492,5 @@ object MyMain {
     }
   */
 
-  def testBundleTestMigration(testBundle: List[List[Long]], graphLoaded: Graph[(Long, Long), Long], sc: SparkContext): ListBuffer[String] = {
-    //Timed execution
-    val initDate = System.currentTimeMillis
-    val degrees = graphLoaded.degrees
-    val result = ListBuffer[String]()
-    result += "Migration"
-
-    // Generate a graph with the correct formatting
-    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
-    // Saves edge count co a const
-    val totEdges = graph.edges.count() / 2
-
-    // Initialization of delta system. (The graph initially has one vertex for each community, so the first delta should be 0 )
-    // Moreover modularity of a single vertex is zero by default
-    var oldCom: List[Long] = List()
-    // CommId of the vertex will be 1, for testing purpose
-    val addingComm = new Community(100L, 0.0, ListBuffer())
-    val removingComm = new Community(200L, 0.0, ListBuffer())
-    commRDD = commRDD.union(sc.parallelize(List(addingComm, removingComm))).distinct()
-    // Foreach community inside the bundle
-    for (com <- testBundle) {
-      println(s"\n\nCommunity status update")
-      commRDD.collect().foreach(println)
-
-      val innerTimeInit = System.currentTimeMillis()
-
-      // Take only those Id were added to last community
-      com.filterNot(oldCom.contains(_)).foreach(id => {
-        println(s"Add ver $id to com ${addingComm.comId}")
-
-        // Take the reference of that vertex. In spite of ".first()" there should always be only one value
-        val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
-        println(s"Switching Vertex $switchingVertex")
-
-        // Count edges inside the old community to be subtracted and count edges inside the new community to be added
-        //(OldCommunity, NewCommunity)
-        val oldComPointer = commRDD.filter(c => c.comId == switchingVertex.comId).first()
-        val newComPointer = commRDD.filter(c => c.comId == addingComm.comId).first()
-        val edgesChange = graph.triplets.filter(tri => tri.srcId == switchingVertex.verId).map(tri => tri.dstAttr).map(dstId => {
-          if (oldComPointer.members.contains(dstId)) (1, 0)
-          else if (newComPointer.members.contains(dstId)) (0, 1)
-          else (0, 0)
-        }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
-
-        // Foreach community inside the list, update modularity values in the communityRDD
-        commRDD = commRDD.map(c => {
-          // If the community is the old one
-          if (c.comId == switchingVertex.comId)
-            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
-
-          //Else if the community is the new one
-          else if (c.comId == addingComm.comId)
-            c.addToComm(switchingVertex, edgesChange._2, totEdges)
-          c
-        })
-      })
-
-      // Take only those Id which were removed from last community
-      oldCom.filterNot(com.contains(_)).foreach(id => {
-        println(s"Removing ver $id towards com ${removingComm.comId}")
-
-        // Take the reference of that vertex. In spite of ".first()" there should always be only one value
-        val switchingVertex: myVertex = graph.vertices.filter(v => v._1 == id).values.first()
-        println(s"Switching Vertex $switchingVertex")
-
-        // Count edges inside the old community to be subtracted and count edges inside the new community to be added
-        //(OldCommunity, NewCommunity)
-        val oldComPointer = commRDD.filter(c => c.comId == switchingVertex.comId).first()
-        val newComPointer = commRDD.filter(c => c.comId == removingComm.comId).first()
-        val edgesChange = graph.triplets.filter(tri => tri.srcId == switchingVertex.verId).map(tri => tri.dstAttr).map(dstId => {
-          if (oldComPointer.members.contains(dstId)) (1, 0)
-          else if (newComPointer.members.contains(dstId)) (0, 1)
-          else (0, 0)
-        }).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
-
-        // Foreach community inside the list, update modularity values in the communityRDD
-        commRDD = commRDD.map(c => {
-          // If the community is the old one
-          if (c.comId == switchingVertex.comId)
-            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
-
-          //Else if the community is the new one
-          else if (c.comId == removingComm.comId)
-            c.addToComm(switchingVertex, edgesChange._2, totEdges)
-          c
-        })
-      })
-
-      println(s"After UPDATE")
-      commRDD.collect().foreach(println)
-
-      val innerTimeEnd = System.currentTimeMillis()
-      result += s"Time: ${innerTimeEnd - innerTimeInit}\t Modularity of: $com:\t ${commRDD.map(c => c.modularity).reduce((c, v) => c + v)}"
-      oldCom = com
-    }
-    val endDate = System.currentTimeMillis()
-    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
-    result
-  }
-
-  def testBundleTestModularity(testBundle: List[List[Long]], graphLoaded: Graph[(Long, Long), Long]): ListBuffer[String] = {
-    val initDate = System.currentTimeMillis()
-
-    val degrees = graphLoaded.degrees.cache()
-    val result = ListBuffer[String]()
-    result += "Whole Computation"
-
-    for (tmpComm <- testBundle) {
-      val innerTimeInit = System.currentTimeMillis()
-      // (Degree, CommId)
-      val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) =>
-        new myVertex(degOpt.getOrElse(0).toLong / 2, if (tmpComm.contains(id)) 1L else id, id)
-      }
-      //      println(s"Modularity of $tmpComm:\t ${modularity(graph)}")
-      val comModularity = modularity(tmpGraph)
-      val innerTimeEnd = System.currentTimeMillis()
-      val s = s"Time: ${innerTimeEnd - innerTimeInit}\tModularity of $tmpComm:\t $comModularity"
-      result += s
-    }
-    val endDate = System.currentTimeMillis()
-    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
-    result
-  }
-
-  def modularity(graph: Graph[myVertex, Long]): Double = {
-    val totEdges = graph.edges.count() / 2
-
-    val primaParte = graph.mapTriplets(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1L else 0L).edges.reduce((a, b) => new Edge[Long](0, 0, a.attr + b.attr)).attr / 2
-
-    //Lista di funzioni da riga-vertice a valore y da togliere alla mod.
-    val functionList = graph.vertices.map(x =>
-      List((pay: (VertexId, myVertex)) => if (pay._2.comId == x._2.comId && x._1 != pay._1) {
-        -pay._2.degree.toFloat * x._2.degree.toFloat / (2 * totEdges)
-      } else 0.0)
-    ).reduce((a, b) => a ::: b)
-    //Mappando ai vertici una funzione che mappa a tutte le funzioni nella mia lista ogni vertice e sommando tutto
-    // a ritroso si ha il risultato
-    val secondaParte = graph.vertices.map(ver => functionList.map(f => f(ver)).sum).reduce((a, b) => a + b)
-
-    (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
-  }
-
-  def readGraph(sc: SparkContext, edgeFile: String): Graph[(Long, Long), Long] = {
-    val edgeDelimiter = ","
-
-    // Parse the input file. If there are 2 int on each line edge weight is 1 by default. If there are 3 input on each line
-    // edge weight is the last one.
-    // If there are 0, 1 or more than 3 element per row throw exception
-    val edgeRDD = sc.textFile(edgeFile).map(row => {
-      val tokens = row.split(edgeDelimiter).map(_.trim())
-      tokens.length match {
-        case 2 =>
-          new Edge(tokens(0).toLong, tokens(1).toLong, 1L)
-        case 3 =>
-          new Edge(tokens(0).toLong, tokens(1).toLong, tokens(2).toLong)
-        case _ =>
-          throw new IllegalArgumentException("invalid input line: " + row)
-      }
-    })
-    Graph.fromEdges(edgeRDD, (-1L, -1L))
-  }
-
-  def saveResultBulk(result: ListBuffer[String]): Unit = {
-    val pw = new PrintWriter(new FileOutputStream(System.getProperty("output_path") + "/Result.txt", true))
-    result.foreach(line => pw.append(line + "\n"))
-    pw.close()
-  }
-
-  def saveSingleLine(line: String): Unit = {
-    val pw = new PrintWriter(new FileOutputStream(System.getProperty("output_path") + "/Result.txt", true))
-    pw.append(line + "\n")
-    pw.close()
-  }
 
 }
