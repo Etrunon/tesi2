@@ -3,8 +3,6 @@ package myThesis
 import java.io._
 import java.util.Date
 
-import myThesis.BulkModularity.testBundleTestModularity
-import myThesis.MigrationModularity.testBundleTestMigration
 import myThesis.UtilityFunctions.{readGraph, saveResultBulk, saveSingleLine}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
@@ -58,24 +56,210 @@ object MyMain {
     // create the graph from the file and add util data: (degree, commId)
     val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
-    val res1 = testBundleTestModularity(testBundle, graphLoaded)
-    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
+    //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
+    //    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
     //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
-    val res4 = strategicCommunityFinder(graphLoaded, sc)
-
-    saveResultBulk(res1)
-    saveResultBulk(res2)
+    //    val res4 = strategicCommunityFinder(graphLoaded, sc)
+    val res5 = strategicCommunityFinder2(graphLoaded, sc)
+    //    saveResultBulk(res1)
+    //    saveResultBulk(res2)
     //        saveResultBulk(res3)
-    saveResultBulk(res4)
+    //    saveResultBulk(res4)
+    saveResultBulk(res5)
 
-    res1.foreach(println)
-    res2.foreach(println)
+    //    res1.foreach(println)
+    //    res2.foreach(println)
     //        res3.foreach(println)
-    res4.foreach(println)
+    //    res4.foreach(println)
+    res5.foreach(println)
 
     // Line to make program stop and being able to view SparkWebUI
     //    readInt()
   }
+
+  def strategicCommunityFinder2(graphLoaded: Graph[(VertexId, VertexId), VertexId], sc: SparkContext): ListBuffer[String] = {
+    val initDate = System.currentTimeMillis
+    val degrees = graphLoaded.degrees
+    val result = ListBuffer[String]()
+    result += "\nStrategic Community Finder V2 (Neighbours'neighbours)"
+
+    // Generate a graph with the correct formatting
+    val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph = pruneLeaves(tmpGraph, sc)
+
+    // Obtain an RDD containing every community
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    // Saves edge count co a const
+    val totEdges = graph.edges.count() / 2
+
+    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
+    var triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
+
+    var updated = false
+
+    var cycle = 0L
+    do {
+      println(s"££££££££££" * 10)
+      println(s"££££££££££" * 10)
+      println(s"££££££££££ Cycle $cycle ££££££££££")
+
+      val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
+
+      // Get the rdd containing each source node with the list of its neighbours which are in a different community
+      val listNeighbours = updatedTriplets.groupBy(tri => tri._1.verId).map(tri => {
+        //Map the list of neighbours so that it contains only those of different community
+        val listNeighbours = tri._2.filter(t => t._1.comId != t._2.comId).map(t => List(t._2)).reduce((a, b) => a ::: b)
+        //Map of (sourceNeighbour -> its neighbours)
+        (listNeighbours, Map[myVertex, List[myVertex]](tri._2.head._1 -> listNeighbours))
+      }).collect()
+
+      val bcListNeighbour = sc.broadcast(listNeighbours)
+
+      val neighboursNeighbours = vertexRDD.map(v => {
+        val neighNeigh = mutable.Map[myVertex, List[myVertex]]()
+        bcListNeighbour.value.foreach(ln => {
+          if (ln._1.contains(v._2))
+            neighNeigh ++= ln._2
+        })
+        (v._2.comId, List(v._2), neighNeigh)
+      }).groupBy(t => t._1).map(t => {
+
+        val x = t._2.map(e => e._3).reduce((a, b) => a ++ b)
+        (t._1, x)
+      })
+
+      val exposedComm = commRDD.map(c => (c.comId, c))
+
+      val initialSchedule = exposedComm.join(neighboursNeighbours).map(_._2).map(cnn => {
+        var initialSchedule: ListBuffer[(myVertex, Community, Double)] = ListBuffer[(myVertex, Community, Double)]()
+        cnn._2.foreach(nln => {
+          val reachability = (nln._2.intersect(cnn._1.members).size.toDouble + 1.0) / (cnn._1.members.size.toDouble + 1.0)
+          if (reachability >= 0.5)
+            initialSchedule += ((nln._1, cnn._1, reachability))
+        })
+        initialSchedule.toList
+      }).reduce((a, b) => a ::: b)
+
+      initialSchedule.foreach(println)
+      //      val optimizedSchedule = dynamicReachablityScheduler(initialSchedule.sortBy(_._3).map(t => (t._1, t._2)).reverse, Set(), mutable.Map(), 0L)
+      //      println(s"\n\n\nOptimizedSchedule ${optimizedSchedule.size} of unoptimized ${initialSchedule.size}")
+      //      optimizedSchedule.foreach(println)
+
+      var mutSet = Set[Long]()
+      val opt2 = ListBuffer[(myVertex, Community)]()
+      initialSchedule.sortBy(_._3).reverse.groupBy(_._3).foreach(g => {
+        println(s"MuSet $mutSet")
+        println(s"opt2 $opt2")
+        val tup = dynamicReachablityScheduler(g._2.map(t => (t._1, t._2)), mutSet, mutable.Map(), 0L)
+        mutSet = tup._2
+        tup._1.foreach(println)
+        opt2 ++= tup._1
+      })
+
+      println(s"\n\n\nOptimizedSchedule ${opt2.size} of unoptimized ${initialSchedule.size}")
+      opt2.foreach(println)
+
+
+      val scheduleWithPartingEdges = opt2.map(sc => {
+        graph.triplets.map(tri => {
+          if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._1.comId)
+            (sc._1, sc._2, (1L, 0L))
+          else if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._2.comId)
+            (sc._1, sc._2, (0L, 1L))
+          else
+            (sc._1, sc._2, (0L, 0L))
+        }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
+      })
+
+      if (opt2.length < 1) {
+
+        updated = false
+      }
+      else {
+        updated = true
+
+        //        println(s"\n\nBefore applying deltas")
+        //        commRDD.collect().foreach(println)
+
+        commRDD = changeListDelta(graph, commRDD, sc.parallelize(scheduleWithPartingEdges), totEdges)
+
+        //        println(s"\n\nCome esce dall'aggiornamento")
+        //        commRDD.collect().foreach(println)
+        //        println(s"\n\nTolgo le comunita' vuote")
+        commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
+
+        //        println(s"\n\nAfter Computation")
+        //        println(s"Total Modularity: ${commRDD.map(c => c.modularity).sum()}\n")
+        commRDD.collect().foreach(println)
+
+        vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
+      }
+
+      cycle += 1
+      if (cycle == 3)
+        updated = false
+    } while (updated)
+
+    result += "Final score"
+    commRDD.collect().foreach(c => result += c.toString)
+
+    val endDate = System.currentTimeMillis
+    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
+    result
+  }
+
+  def dynamicReachablityScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): (List[(myVertex, Community)], Set[Long]) = {
+
+    //    println(" - " * mapIndex.toInt + s"BannList: $banSet")
+    var finale: List[(myVertex, Community)] = List()
+    list match {
+      case head :: Nil =>
+        if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
+          finale = List(head)
+        }
+        else {
+          finale = List()
+        }
+      case head :: tail => {
+        //        println(" - " * mapIndex.toInt + s"Head: $head")
+        //        println(" - " * mapIndex.toInt + s"tail: $tail")
+        // Else if the operation is banned return possible operation without this
+        if (banSet.contains(head._1.comId) || banSet.contains(head._2.comId)) {
+          finale = dynamicReachablityScheduler(tail, banSet, memoization, mapIndex + 1L)._1
+        }
+        //If current operation is not banned
+        else {
+          // Compute the values with current and without
+          val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
+            val x = List(head) ::: dynamicReachablityScheduler(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1L)._1
+            memoization(mapIndex) = x
+            x
+          } else
+            memoization.getOrElse(mapIndex, null)
+
+          val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1L, null) == null) {
+            val x = dynamicReachablityScheduler(tail, banSet, memoization, mapIndex + 2L)._1
+            memoization(mapIndex + 1L) = x
+            x
+          } else
+            memoization.getOrElse(mapIndex + 1L, null)
+
+          // Whichever is bigger is returned
+          //          println(" - " * mapIndex.toInt + s"${withFirst.size > withoutFirst.size} ${withFirst.size} > ${withoutFirst.size}")
+          if (withFirst.size >= withoutFirst.size) {
+            finale = withFirst
+          }
+          else {
+            finale = withoutFirst
+          }
+        }
+      }
+      case Nil =>
+    }
+    //    println(" - " * mapIndex.toInt + s"finale: $finale")
+    (finale, banSet)
+  }
+
 
   /**
     * Function that given a list of possible operations returns a list of compatible operation which should result in the maximized gain
@@ -90,7 +274,6 @@ object MyMain {
   def dynamicScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
 
     var finale: List[(myVertex, Community)] = List()
-    println(s"to be scheduled List $list")
     list match {
       case head :: Nil =>
         if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
@@ -173,7 +356,7 @@ object MyMain {
     val initDate = System.currentTimeMillis
     val degrees = graphLoaded.degrees
     val result = ListBuffer[String]()
-    result += "Strategic Community Finder"
+    result += "\nStrategic Community Finder V1 (Neighbours's Modularity)"
 
     // Generate a graph with the correct formatting
     val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
@@ -188,13 +371,13 @@ object MyMain {
     val totEdges = graph.edges.count() / 2
 
     var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
-
+    val triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
     //    println(s"\n\nComunita' divise per membri")
     //    commRDD.map(c => c.members).collect().foreach(println)
     println(s"\n\nVertici")
     vertexRDD.collect().foreach(println)
-    var updated = false
 
+    var updated = false
     var cycle = 0L
     do {
       println(s"Cycle $cycle")
@@ -218,7 +401,6 @@ object MyMain {
         (currComm, edgeCount)
       })
       //Get the updated triplet objects
-      val triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
       val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
 
       // Get the incoming frontier of each community listing each neighbour and how many times it comes into me
