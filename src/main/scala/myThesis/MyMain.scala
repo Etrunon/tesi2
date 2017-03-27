@@ -3,7 +3,7 @@ package myThesis
 import java.io._
 import java.util.Date
 
-import myThesis.UtilityFunctions.{readGraph, saveResultBulk, saveSingleLine}
+import myThesis.UtilityFunctions.{readGraph, saveSingleLine}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
@@ -16,7 +16,6 @@ import scala.collection.mutable.ListBuffer
   * Created by etrunon on 13/02/17.
   */
 object MyMain {
-
 
   def main(args: Array[String]): Unit = {
     //List of communities to test code
@@ -45,7 +44,7 @@ object MyMain {
     Logger.getLogger("akka").setLevel(Level.OFF)
 
     // Sets source folder
-    val edgeFile = "RunData/Input/processed_micro.csv"
+    val edgeFile = "RunData/Input/processed_unit.csv"
     // Sets output folder
     val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
     val outputDir = new File(outputPath)
@@ -56,25 +55,96 @@ object MyMain {
     // create the graph from the file and add util data: (degree, commId)
     val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
+    unittest(graphLoaded, sc)
+
     //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
     //    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
     //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
     //    val res4 = strategicCommunityFinder(graphLoaded, sc)
-    val res5 = strategicCommunityFinder2(graphLoaded, sc)
+    //    val res5 = strategicCommunityFinder2(graphLoaded, sc)
     //    saveResultBulk(res1)
     //    saveResultBulk(res2)
     //        saveResultBulk(res3)
     //    saveResultBulk(res4)
-    saveResultBulk(res5)
+    //    saveResultBulk(res5)
 
     //    res1.foreach(println)
     //    res2.foreach(println)
     //        res3.foreach(println)
     //    res4.foreach(println)
-    res5.foreach(println)
+    //    res5.foreach(println)
 
     // Line to make program stop and being able to view SparkWebUI
     //    readInt()
+  }
+
+  def unittest(graphLoaded: Graph[(VertexId, VertexId), VertexId], sc: SparkContext) = {
+    val initDate = System.currentTimeMillis
+    val degrees = graphLoaded.degrees
+    val result = ListBuffer[String]()
+    result += "\nStrategic Community Finder V2 (Neighbours'neighbours)"
+
+    // Generate a graph with the correct formatting
+    val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph = pruneLeaves(tmpGraph, sc)
+
+    // Obtain an RDD containing every community
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    // Saves edge count co a const
+    val totEdges = graph.edges.count() / 2
+
+    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
+    var triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
+
+    // TEST Modularity buggata
+    val v2 = graph.vertices.filter(v => v._2.verId == 2L).first()._2
+    commRDD = commRDD.map(c => {
+      if (c.comId == v2.comId) {
+        c.removeFromComm(v2, 0, 3); c
+      } else if (c.comId == 1) {
+        c.addToComm(v2, 1, 3); c
+      } else c
+    })
+    commRDD.collect().foreach(println)
+
+    val v3 = graph.vertices.filter(v => v._2.verId == 3L).first()._2
+    commRDD = commRDD.map(c => {
+      if (c.comId == v3.comId) {
+        c.removeFromComm(v3, 0, 3); c
+      } else if (c.comId == 1) {
+        c.addToComm(v3, 1, 3); c
+      } else c
+    })
+    commRDD.collect().foreach(println)
+
+    println("!" * 200)
+    for (a <- 0 to 10) {
+      if (a % 2 == 0) {
+        commRDD = commRDD.map(c => {
+          if (c.comId == v2.comId) {
+            c.removeFromComm(v2, 0, 3);
+            c
+          } else if (c.comId == 1) {
+            c.addToComm(v2, 1, 2);
+            c
+          } else c
+        })
+        commRDD.collect().foreach(println)
+        println(s"$a" + "-" * 200)
+      } else {
+        commRDD = commRDD.map(c => {
+          if (c.comId == v2.comId) {
+            c.addToComm(v2, 1, 2);
+            c
+          } else if (c.comId == 1) {
+            c.removeFromComm(v2, 0, 3);
+            c
+          } else c
+        })
+        commRDD.collect().foreach(println)
+        println(s"$a" + "-" * 200)
+      }
+    }
   }
 
   def strategicCommunityFinder2(graphLoaded: Graph[(VertexId, VertexId), VertexId], sc: SparkContext): ListBuffer[String] = {
@@ -108,6 +178,7 @@ object MyMain {
       // Get the rdd containing each source node with the list of its neighbours which are in a different community
       val listNeighbours = updatedTriplets.groupBy(tri => tri._1.verId).map(tri => {
         //Map the list of neighbours so that it contains only those of different community
+        //ToDo fix bug UnsupportedOperationException: empty.reduceLeft
         val listNeighbours = tri._2.filter(t => t._1.comId != t._2.comId).map(t => List(t._2)).reduce((a, b) => a ::: b)
         //Map of (sourceNeighbour -> its neighbours)
         (listNeighbours, Map[myVertex, List[myVertex]](tri._2.head._1 -> listNeighbours))

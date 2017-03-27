@@ -70,7 +70,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
     members -= ver
     if (members.length > 1) {
       val reducingComp = membersReducingComp(ver, totEdges)
-      modularity += -(1.0 / (4.0 * totEdges)) * (-oldEdges - reducingComp)
+      modularity += (1.0 / (4.0 * totEdges)) * (-oldEdges - reducingComp)
     } else {
       modularity = 0.0
     }
@@ -86,7 +86,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
     */
   def potentialVertexGain(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
     val reducingComp = membersReducingComp(ver, totEdges)
-    (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
+    (1.0 / (2.0 * totEdges)) * (potEdges + reducingComp)
   }
 
   /**
@@ -104,6 +104,10 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
     }).sum
   }
 
-
-
+  override def equals(obj: scala.Any): Boolean = {
+    obj match {
+      case obj: Community => obj.comId == this.comId && obj.members.toSet.equals(this.members.toSet)
+      case _ => false
+    }
+  }
 }

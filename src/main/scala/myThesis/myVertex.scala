@@ -17,7 +17,7 @@ class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
   var comId: Long = cid
   /** *
     * This value should be normally negative. Meaning that tearing it off its community will result in a loss for it. Otherwise
-    * if it ends up being positive it means that putting it into that community was a mistake and it would make the score increase.
+    * if it ends up being positive it means that putting it into that community was a mistake and it would make the score increase if removed.
     */
   var potentialLoss: Double = 0.0
 
