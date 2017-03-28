@@ -22,7 +22,7 @@ class Triangle_test {
 class CommunityTest extends FlatSpec with Matchers {
   val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
   val sc = new SparkContext(conf)
-  val epsilon = 0.000000001
+  val epsilon = math.pow(10, -6)
 
   class Fixtures {
     val graphLoaded: Graph[(Long, Long), Long] = {
@@ -32,18 +32,18 @@ class CommunityTest extends FlatSpec with Matchers {
     val emptyVertex = new myVertex(0, 0, 0)
     val emptyCommunity = new Community(0, 0.0, new ListBuffer[myVertex]())
     val triangle_test: Triangle_test = new Triangle_test()
-
   }
 
   def fixture = new Fixtures
 
-  "Spark" should "load graph from file VERTICES" in {
-    fixture.graphLoaded.vertices.count() should be(3)
-  }
-
-  it should "load graph from file EDGES" in {
-    fixture.graphLoaded.edges.count() should be(6)
-  }
+  //  "Spark" should "load graph from file VERTICES" in {
+  //  ignore should "load graph from file VERTICES" in {
+  //    fixture.graphLoaded.vertices.count() should be(3)
+  //  }
+  //
+  //  ignore should "load graph from file EDGES" in {
+  //    fixture.graphLoaded.edges.count() should be(6)
+  //  }
 
   "myVertex" should "be created rightly" in {
     val ver = fixture.emptyVertex
@@ -70,6 +70,24 @@ class CommunityTest extends FlatSpec with Matchers {
   it should "toString also in short form" in {
     val ver = fixture.emptyVertex
     ver.toStringShort should be("0, ")
+  }
+
+  it should "switch community id" in {
+    val v0 = fixture.emptyVertex
+    val c0 = new Community(1, 0.0, ListBuffer[myVertex]())
+    val c1 = new Community(2, 0.0, ListBuffer[myVertex]())
+
+    val com0 = v0.comId
+    c0.addToComm(v0, 0, 1)
+    val com1 = v0.comId
+    c1.addToComm(v0, 0, 1)
+    val com2 = v0.comId
+
+    com0 should not be com1
+    com0 should not be com2
+    com1 should not be com2
+
+    // ToDo finire di vedere se il valore viene aggiornato nel momento in cui si cambia comunità
   }
 
   "An empty Community" should "be created rightly" in {
@@ -190,7 +208,7 @@ class CommunityTest extends FlatSpec with Matchers {
     tt.c2.modularity should be(0.0)
   }
 
-  "mini Star graph" should "have total modularity of -1/16" in {
+  "Mini Star graph" should "have total modularity of -1/16" in {
     val c = fixture.emptyCommunity
 
     c.addToComm(new myVertex(2, 0, -1L), 0, 2)
@@ -205,21 +223,108 @@ class CommunityTest extends FlatSpec with Matchers {
     math.abs(c.modularity - (-1.0 / 16.0)) should be < epsilon
   }
 
-  "Star graph" should "have a total modularity of -81/160" in {
+  "Star graph" should "have a total modularity of -90/800" in {
     val c = fixture.emptyCommunity
 
     c.addToComm(new myVertex(10, 0, -1L), 0, 10)
 
-    for (i <- 0 to 8) {
+    for (i <- 0 to 9) {
       c.addToComm(new myVertex(1, 0, i), 1, 10)
       println(c.modularity)
     }
 
     println(c.members.size)
-    println(s"C mod ${c.modularity} should be ${-81.0 / 160.0}")
-    math.abs(c.modularity - (-81.0 / 160.0)) should be < epsilon
+    println(s"C mod ${c.modularity} should be ${-90.0 / 800.0}")
+    math.abs(c.modularity - (-90.0 / 800.0)) should be < epsilon
 
   }
 
+  it should "have -90/800 of modularity in its extremis" in {
+    val c = fixture.emptyCommunity
+
+    for (i <- 0 to 9) {
+      c.addToComm(new myVertex(1, 0, i), 0, 10)
+      println(c.modularity)
+    }
+
+    println(c.members.size)
+    println(s"C mod ${c.modularity} should be ${-90.0 / 800.0}")
+    math.abs(c.modularity - (-90.0 / 800.0)) should be < epsilon
+  }
+
+  it should "be able to remove each vertex down to 0 correctly" in {
+    val c = fixture.emptyCommunity
+    val modList = ListBuffer[Double]()
+
+    c.addToComm(new myVertex(10, 0, -1L), 0, 10)
+    modList += c.modularity
+    for (i <- 0 to 9) {
+      c.addToComm(new myVertex(1, 0, i), 1, 10)
+      modList += c.modularity
+    }
+
+    val revList = modList.reverse
+
+    for (i <- 0 to 9) {
+      println(s"Mod ${c.modularity} - ${revList(i)}")
+      math.abs(c.modularity - revList(i)) should be < epsilon
+      c.removeFromComm(new myVertex(1, 0, i), 1, 10)
+    }
+  }
+
+  "A square graph" should "have -1/8 total modularity" in {
+    val c0 = new Community(0, 0.0, ListBuffer[myVertex]())
+
+    c0.addToComm(new myVertex(2, 0, 0), 0, 4)
+    println(c0.modularity)
+    c0.addToComm(new myVertex(2, 0, 1), 1, 4)
+    println(c0.modularity)
+    c0.addToComm(new myVertex(2, 0, 2), 1, 4)
+    println(c0.modularity)
+    c0.addToComm(new myVertex(2, 0, 3), 2, 4)
+    println(c0.modularity)
+
+    c0.modularity should be(-1.0 / 8.0)
+  }
+
+  "Potential Vertex Gain" should "be computed (on a square graph)" in {
+    val c0 = new Community(0, 0.0, ListBuffer[myVertex]())
+    val c1 = new Community(1, 0.0, ListBuffer[myVertex]())
+
+    val v0 = new myVertex(2, 0, 0)
+    c0.addToComm(v0, 0, 4)
+    c0.addToComm(new myVertex(2, 0, 1), 1, 4)
+
+    val v1 = new myVertex(2, 0, 2)
+    c1.addToComm(v1, 0, 4)
+    c1.addToComm(new myVertex(2, 0, 3), 1, 4)
+
+    val mod = c0.modularity
+    val gain = c0.potentialVertexGain(v1, 1, 4)
+    gain should be(c1.potentialVertexGain(v0, 1, 4))
+
+    c0.addToComm(v1, 1, 4)
+
+    c0.modularity should be(gain + mod)
+  }
+
+  it should "be stored into each node (in a square graph)" in {
+    // This test takes advantage of the fact that modularity in a square is 0, 0, 0.625
+    val c0 = fixture.emptyCommunity
+    val v0 = new myVertex(2, 0, 0)
+    c0.addToComm(v0, 0, 4)
+
+    v0.potentialLoss should be(0.0)
+
+    val v1 = new myVertex(2, 0, 1)
+    c0.addToComm(v1, 1, 4)
+
+    v1.potentialLoss should be(-c0.modularity)
+
+    val v2 = new myVertex(2, 0, 2)
+    c0.addToComm(v2, 1, 4)
+
+    v2.potentialLoss should be(-c0.modularity)
+  }
 
 }

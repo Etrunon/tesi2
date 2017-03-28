@@ -86,7 +86,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
     */
   def potentialVertexGain(ver: myVertex, potEdges: Long, totEdges: Long): Double = {
     val reducingComp = membersReducingComp(ver, totEdges)
-    (1.0 / (2.0 * totEdges)) * (potEdges + reducingComp)
+    (1.0 / (4.0 * totEdges)) * (potEdges + reducingComp)
   }
 
   /**

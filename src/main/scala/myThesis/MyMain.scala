@@ -3,7 +3,7 @@ package myThesis
 import java.io._
 import java.util.Date
 
-import myThesis.UtilityFunctions.{readGraph, saveSingleLine}
+import myThesis.UtilityFunctions.{readGraph, saveResultBulk, saveSingleLine}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
@@ -44,7 +44,7 @@ object MyMain {
     Logger.getLogger("akka").setLevel(Level.OFF)
 
     // Sets source folder
-    val edgeFile = "RunData/Input/processed_unit.csv"
+    val edgeFile = "RunData/Input/processed_micro.csv"
     // Sets output folder
     val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
     val outputDir = new File(outputPath)
@@ -55,25 +55,30 @@ object MyMain {
     // create the graph from the file and add util data: (degree, commId)
     val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
 
-    unittest(graphLoaded, sc)
+    //    unittest(graphLoaded, sc)
 
     //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
     //    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
     //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
     //    val res4 = strategicCommunityFinder(graphLoaded, sc)
-    //    val res5 = strategicCommunityFinder2(graphLoaded, sc)
+    //        val res5 = strategicCommunityFinder2(graphLoaded, sc)
     //    saveResultBulk(res1)
     //    saveResultBulk(res2)
     //        saveResultBulk(res3)
     //    saveResultBulk(res4)
-    //    saveResultBulk(res5)
+    //        saveResultBulk(res5)
 
     //    res1.foreach(println)
     //    res2.foreach(println)
     //        res3.foreach(println)
     //    res4.foreach(println)
-    //    res5.foreach(println)
+    //        res5.foreach(println)
 
+    for (a <- 0 to 10) {
+      val res5 = strategicCommunityFinder2(graphLoaded, sc)
+      saveResultBulk(res5)
+      res5.foreach(println)
+    }
     // Line to make program stop and being able to view SparkWebUI
     //    readInt()
   }
@@ -97,47 +102,60 @@ object MyMain {
     var triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
 
     // TEST Modularity buggata
+    // Add vertex 2 to community
     val v2 = graph.vertices.filter(v => v._2.verId == 2L).first()._2
     commRDD = commRDD.map(c => {
       if (c.comId == v2.comId) {
-        c.removeFromComm(v2, 0, 3); c
+        c.removeFromComm(v2, 0, 3);
+        c
       } else if (c.comId == 1) {
-        c.addToComm(v2, 1, 3); c
+        c.addToComm(v2, 1, 3);
+        c
       } else c
     })
-    commRDD.collect().foreach(println)
-
+    // Add vertex 3 to community
     val v3 = graph.vertices.filter(v => v._2.verId == 3L).first()._2
     commRDD = commRDD.map(c => {
       if (c.comId == v3.comId) {
-        c.removeFromComm(v3, 0, 3); c
+        c.removeFromComm(v3, 0, 3);
+        c
       } else if (c.comId == 1) {
-        c.addToComm(v3, 1, 3); c
+        c.addToComm(v3, 2, 3);
+        c
       } else c
     })
     commRDD.collect().foreach(println)
 
-    println("!" * 200)
-    for (a <- 0 to 10) {
+
+    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" * 10)
+
+    println(s"V2 labelled comm: ${v2.comId}")
+    //For 100 times
+    for (a <- 0 to 100) {
+      // If cycle is even
       if (a % 2 == 0) {
+        //Take v2 from comm1 and move it to com2
         commRDD = commRDD.map(c => {
-          if (c.comId == v2.comId) {
-            c.removeFromComm(v2, 0, 3);
+          if (c.comId == 2) {
+            c.addToComm(v2, 0, 3)
             c
           } else if (c.comId == 1) {
-            c.addToComm(v2, 1, 2);
+            c.removeFromComm(v2, 2, 3)
             c
           } else c
         })
+        //Debug print
         commRDD.collect().foreach(println)
         println(s"$a" + "-" * 200)
       } else {
+        // Else if cycle is odd
+        // take v2 from its comm (should be com1) and add it to its labelled comm
         commRDD = commRDD.map(c => {
-          if (c.comId == v2.comId) {
-            c.addToComm(v2, 1, 2);
+          if (c.comId == 2) {
+            c.removeFromComm(v2, 0, 3)
             c
           } else if (c.comId == 1) {
-            c.removeFromComm(v2, 0, 3);
+            c.addToComm(v2, 2, 3)
             c
           } else c
         })
@@ -167,11 +185,11 @@ object MyMain {
 
     var updated = false
 
+    commRDD.collect().foreach(println)
+
     var cycle = 0L
     do {
-      println(s"££££££££££" * 10)
-      println(s"££££££££££" * 10)
-      println(s"££££££££££ Cycle $cycle ££££££££££")
+      println(s"£££££££££££££££££££££££££££££££££ Cycle $cycle £££££££££££££££££££££££££££££££££££")
 
       val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
 
