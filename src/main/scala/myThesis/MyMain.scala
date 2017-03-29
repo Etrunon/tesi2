@@ -16,66 +16,65 @@ import scala.collection.mutable.ListBuffer
   * Created by etrunon on 13/02/17.
   */
 object MyMain {
+  private var conf: SparkConf = _
+  private var sc: SparkContext = _
+  // Sets source file
+  val edgeFile = "RunData/Input/processed_mini1.csv"
+  // Sets output folder
+  val outputPath: String = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
+  val outputDir = new File(outputPath)
+  outputDir.mkdirs()
+  System.setProperty("output_path", outputPath)
+  saveSingleLine(s"File used $edgeFile\n")
+  val testBundle: List[List[Long]] = List[List[Long]](
+    List(1),
+    List(1, 2),
+    List(1, 2, 3),
+    List(1, 2, 3),
+    List(1, 2),
+    List(1),
+    List()
+    //          List(1, 2, 3, 4),
+    //          List(1, 2, 3, 4, 5),
+    //          List(1, 2, 3, 4, 5, 6),
+    //          List(1, 2, 3, 4, 5, 6, 14),
+    //          List(1, 2, 3, 4, 5, 6, 14, 15),
+    //          List(1, 2, 3, 4, 5, 6, 14, 15, 30),
+    //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
+    //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
+  )
+  val timesToRepeat = 0
 
-  def main(args: Array[String]): Unit = {
-    //List of communities to test code
-    val testBundle = List[List[Long]](
-      List(1),
-      List(1, 2),
-      List(1, 2, 3),
-      List(1, 2, 3),
-      List(1, 2),
-      List(1),
-      List()
-      //          List(1, 2, 3, 4),
-      //          List(1, 2, 3, 4, 5),
-      //          List(1, 2, 3, 4, 5, 6),
-      //          List(1, 2, 3, 4, 5, 6, 14),
-      //          List(1, 2, 3, 4, 5, 6, 14, 15),
-      //          List(1, 2, 3, 4, 5, 6, 14, 15, 30),
-      //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
-      //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
-    )
-
-    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
-    val sc = new SparkContext(conf)
-
+  def initContext(): Unit = {
+    conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
+    sc = new SparkContext(conf)
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
+  }
 
-    // Sets source folder
-    val edgeFile = "RunData/Input/processed_micro.csv"
-    // Sets output folder
-    val outputPath = "RunData/Output/" + new java.text.SimpleDateFormat("dd-MM-yyyy_HH:mm:ss").format(new Date())
-    val outputDir = new File(outputPath)
-    outputDir.mkdirs()
-    System.setProperty("output_path", outputPath)
-    saveSingleLine(s"File used $edgeFile\n")
-
-    // create the graph from the file and add util data: (degree, commId)
-    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
-
-    //    unittest(graphLoaded, sc)
+  def main(args: Array[String]): Unit = {
+    initContext()
+    val graph = loadAndPrepareGraph()
 
     //    val res1 = testBundleTestModularity(testBundle, graphLoaded)
-    //    val res2 = testBundleTestMigration(testBundle, graphLoaded, sc)
+    //    val res2 = testBundleTestMigration(testBundle, graphLoaded)
     //    val res3 = testBundleDeltasTestMigration(testBundle, graphLoaded)
-    //    val res4 = strategicCommunityFinder(graphLoaded, sc)
-    //        val res5 = strategicCommunityFinder2(graphLoaded, sc)
+    //    val res4 = strategicCommunityFinder(graphLoaded)
+    //    val res5 = greedyFinderNeighNeigh(graphLoaded)
     //    saveResultBulk(res1)
     //    saveResultBulk(res2)
-    //        saveResultBulk(res3)
+    //    saveResultBulk(res3)
     //    saveResultBulk(res4)
-    //        saveResultBulk(res5)
+    //    saveResultBulk(res5)
 
     //    res1.foreach(println)
     //    res2.foreach(println)
-    //        res3.foreach(println)
+    //    res3.foreach(println)
     //    res4.foreach(println)
-    //        res5.foreach(println)
+    //    res5.foreach(println)
 
-    for (a <- 0 to 10) {
-      val res5 = strategicCommunityFinder2(graphLoaded, sc)
+    for (a <- 0 to timesToRepeat) {
+      val res5 = greedyFinderNeighNeigh(graph)
       saveResultBulk(res5)
       res5.foreach(println)
     }
@@ -83,104 +82,26 @@ object MyMain {
     //    readInt()
   }
 
-  def unittest(graphLoaded: Graph[(VertexId, VertexId), VertexId], sc: SparkContext) = {
-    val initDate = System.currentTimeMillis
+  def loadAndPrepareGraph(): Graph[myVertex, VertexId] = {
+    // create the graph from the file and add util data: (degree, commId)
+    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, edgeFile)
     val degrees = graphLoaded.degrees
-    val result = ListBuffer[String]()
-    result += "\nStrategic Community Finder V2 (Neighbours'neighbours)"
-
     // Generate a graph with the correct formatting
     val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    val graph = pruneLeaves(tmpGraph, sc)
-
-    // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
-    // Saves edge count co a const
-    val totEdges = graph.edges.count() / 2
-
-    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
-    var triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
-
-    // TEST Modularity buggata
-    // Add vertex 2 to community
-    val v2 = graph.vertices.filter(v => v._2.verId == 2L).first()._2
-    commRDD = commRDD.map(c => {
-      if (c.comId == v2.comId) {
-        c.removeFromComm(v2, 0, 3);
-        c
-      } else if (c.comId == 1) {
-        c.addToComm(v2, 1, 3);
-        c
-      } else c
-    })
-    // Add vertex 3 to community
-    val v3 = graph.vertices.filter(v => v._2.verId == 3L).first()._2
-    commRDD = commRDD.map(c => {
-      if (c.comId == v3.comId) {
-        c.removeFromComm(v3, 0, 3);
-        c
-      } else if (c.comId == 1) {
-        c.addToComm(v3, 2, 3);
-        c
-      } else c
-    })
-    commRDD.collect().foreach(println)
-
-
-    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" * 10)
-
-    println(s"V2 labelled comm: ${v2.comId}")
-    //For 100 times
-    for (a <- 0 to 100) {
-      // If cycle is even
-      if (a % 2 == 0) {
-        //Take v2 from comm1 and move it to com2
-        commRDD = commRDD.map(c => {
-          if (c.comId == 2) {
-            c.addToComm(v2, 0, 3)
-            c
-          } else if (c.comId == 1) {
-            c.removeFromComm(v2, 2, 3)
-            c
-          } else c
-        })
-        //Debug print
-        commRDD.collect().foreach(println)
-        println(s"$a" + "-" * 200)
-      } else {
-        // Else if cycle is odd
-        // take v2 from its comm (should be com1) and add it to its labelled comm
-        commRDD = commRDD.map(c => {
-          if (c.comId == 2) {
-            c.removeFromComm(v2, 0, 3)
-            c
-          } else if (c.comId == 1) {
-            c.addToComm(v2, 2, 3)
-            c
-          } else c
-        })
-        commRDD.collect().foreach(println)
-        println(s"$a" + "-" * 200)
-      }
-    }
+    pruneLeaves(tmpGraph, sc)
   }
 
-  def strategicCommunityFinder2(graphLoaded: Graph[(VertexId, VertexId), VertexId], sc: SparkContext): ListBuffer[String] = {
+  def greedyFinderNeighNeigh(graph: Graph[myVertex, Long]): ListBuffer[String] = {
     val initDate = System.currentTimeMillis
-    val degrees = graphLoaded.degrees
     val result = ListBuffer[String]()
     result += "\nStrategic Community Finder V2 (Neighbours'neighbours)"
-
-    // Generate a graph with the correct formatting
-    val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    val graph = pruneLeaves(tmpGraph, sc)
 
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
-    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
+    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD)
     var triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
 
     var updated = false
@@ -193,14 +114,22 @@ object MyMain {
 
       val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
 
-      // Get the rdd containing each source node with the list of its neighbours which are in a different community
+      //       Get the rdd containing each source node with the list of its neighbours which are in a different community
       val listNeighbours = updatedTriplets.groupBy(tri => tri._1.verId).map(tri => {
         //Map the list of neighbours so that it contains only those of different community
-        //ToDo fix bug UnsupportedOperationException: empty.reduceLeft
-        val listNeighbours = tri._2.filter(t => t._1.comId != t._2.comId).map(t => List(t._2)).reduce((a, b) => a ::: b)
-        //Map of (sourceNeighbour -> its neighbours)
-        (listNeighbours, Map[myVertex, List[myVertex]](tri._2.head._1 -> listNeighbours))
-      }).collect()
+        val diffCommNeigh = tri._2.filter(t => t._1.comId != t._2.comId)
+        if (diffCommNeigh.nonEmpty) {
+          val listNeighbours = diffCommNeigh.map(t => List(t._2)).reduce((a, b) => a ::: b)
+          (listNeighbours, Map[myVertex, List[myVertex]](tri._2.head._1 -> listNeighbours))
+        } else {
+          val listNeighbours = List[myVertex]()
+          null
+        }
+        //Map of (sourceNeighbour -> its neighbours(of diff. comm.) )
+      }).filter(a => a != null).collect()
+
+      println(s"List neighbours")
+      listNeighbours.foreach(println)
 
       val bcListNeighbour = sc.broadcast(listNeighbours)
 
@@ -229,7 +158,7 @@ object MyMain {
         initialSchedule.toList
       }).reduce((a, b) => a ::: b)
 
-      initialSchedule.foreach(println)
+      //      initialSchedule.foreach(println)
       //      val optimizedSchedule = dynamicReachablityScheduler(initialSchedule.sortBy(_._3).map(t => (t._1, t._2)).reverse, Set(), mutable.Map(), 0L)
       //      println(s"\n\n\nOptimizedSchedule ${optimizedSchedule.size} of unoptimized ${initialSchedule.size}")
       //      optimizedSchedule.foreach(println)
@@ -238,14 +167,14 @@ object MyMain {
       val opt2 = ListBuffer[(myVertex, Community)]()
       initialSchedule.sortBy(_._3).reverse.groupBy(_._3).foreach(g => {
         println(s"MuSet $mutSet")
-        println(s"opt2 $opt2")
+        //        println(s"opt2 $opt2")
         val tup = dynamicReachablityScheduler(g._2.map(t => (t._1, t._2)), mutSet, mutable.Map(), 0L)
         mutSet = tup._2
-        tup._1.foreach(println)
+        //        tup._1.foreach(println)
         opt2 ++= tup._1
       })
 
-      println(s"\n\n\nOptimizedSchedule ${opt2.size} of unoptimized ${initialSchedule.size}")
+      //      println(s"\n\n\nOptimizedSchedule ${opt2.size} of unoptimized ${initialSchedule.size}")
       opt2.foreach(println)
 
 
@@ -432,7 +361,7 @@ object MyMain {
     graph2
   }
 
-  def getVertexFromComm(commRDD: RDD[Community], sc: SparkContext): RDD[(Long, myVertex)] = {
+  def getVertexFromComm(commRDD: RDD[Community]): RDD[(Long, myVertex)] = {
     val chee = commRDD.map(c => c.members.toList).reduce((a, b) => a ::: b)
     sc.parallelize(chee.map(v => (v.verId, v)))
   }
@@ -441,15 +370,10 @@ object MyMain {
     triplets.map(t => (t.scrId, t)).join(vertices).map(j => (j._2._1.dstId, j._2._2)).join(vertices).map(j => (j._2._1, j._2._2))
   }
 
-  def strategicCommunityFinder(graphLoaded: Graph[(Long, Long), Long], sc: SparkContext): ListBuffer[String] = {
+  def strategicCommunityFinder(graph: Graph[myVertex, Long]): ListBuffer[String] = {
     val initDate = System.currentTimeMillis
-    val degrees = graphLoaded.degrees
     val result = ListBuffer[String]()
     result += "\nStrategic Community Finder V1 (Neighbours's Modularity)"
-
-    // Generate a graph with the correct formatting
-    val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    val graph = pruneLeaves(tmpGraph, sc)
 
     println(s"Vertices")
     graph.vertices.collect().foreach(println)
@@ -459,7 +383,7 @@ object MyMain {
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
-    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
+    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD)
     val triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
     //    println(s"\n\nComunita' divise per membri")
     //    commRDD.map(c => c.members).collect().foreach(println)

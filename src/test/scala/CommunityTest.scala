@@ -2,6 +2,7 @@
   * Created by etrunon on 13/02/17.
   */
 
+import myThesis.MyMain.pruneLeaves
 import myThesis.{Community, UtilityFunctions, myVertex}
 import org.apache.spark.graphx.Graph
 import org.apache.spark.{SparkConf, SparkContext}
@@ -19,14 +20,27 @@ class Triangle_test {
   val c2 = new Community(2, 0.0, ListBuffer[myVertex](v2))
 }
 
-class CommunityTest extends FlatSpec with Matchers {
-  val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
-  val sc = new SparkContext(conf)
+class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
+  private var sc: SparkContext = null
   val epsilon = math.pow(10, -6)
+  var edgeFile = "RunData/Input/processed_unit.csv"
+
+  override protected def beforeAll(): Unit = {
+    System.clearProperty("spark.driver.port")
+    System.clearProperty("spark.hostPort")
+    val conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
+    sc = new SparkContext(conf)
+  }
+
+  override protected def afterAll(): Unit = {
+    sc.stop()
+    sc = null
+    System.clearProperty("spark.driver.port")
+    System.clearProperty("spark.hostPort")
+  }
 
   class Fixtures {
     val graphLoaded: Graph[(Long, Long), Long] = {
-      val edgeFile = "RunData/Input/processed_unit.csv";
       UtilityFunctions.readGraph(sc, edgeFile)
     }
     val emptyVertex = new myVertex(0, 0, 0)
@@ -36,14 +50,12 @@ class CommunityTest extends FlatSpec with Matchers {
 
   def fixture = new Fixtures
 
-  //  "Spark" should "load graph from file VERTICES" in {
-  //  ignore should "load graph from file VERTICES" in {
-  //    fixture.graphLoaded.vertices.count() should be(3)
-  //  }
-  //
-  //  ignore should "load graph from file EDGES" in {
-  //    fixture.graphLoaded.edges.count() should be(6)
-  //  }
+  "Spark" should "load graph from file VERTICES" in {
+    edgeFile = "RunData/Input/processed_unit.csv"
+    val graph = fixture.graphLoaded
+    graph.vertices.count() should be(3)
+    graph.edges.count() should be(6)
+  }
 
   "myVertex" should "be created rightly" in {
     val ver = fixture.emptyVertex
@@ -325,6 +337,36 @@ class CommunityTest extends FlatSpec with Matchers {
     c0.addToComm(v2, 1, 4)
 
     v2.potentialLoss should be(-c0.modularity)
+  }
+
+  "Prune Leaves" should "prune leaves" in {
+    edgeFile = "RunData/Input/processed_unitLeaves.csv"
+
+    val graph = fixture.graphLoaded
+    val degrees = graph.degrees
+    // Generate a graph with the correct formatting
+    val tmpGraph: Graph[myVertex, Long] = graph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val prunedGraph = pruneLeaves(tmpGraph, sc)
+
+    prunedGraph.vertices.count should be(3)
+    prunedGraph.edges.count should be(6)
+
+    // Get only vertices ids and they should be 1 2 3
+    prunedGraph.vertices.collect().map(v => v._1).toSet should be(Set(1, 2, 3))
+    println("5")
+  }
+
+  it should "delete a single chain graph" in {
+    edgeFile = "RunData/Input/processed_unitChain.csv"
+
+    val graph = fixture.graphLoaded
+    val degrees = graph.degrees
+    // Generate a graph with the correct formatting
+    val tmpGraph: Graph[myVertex, Long] = graph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val prunedGraph = pruneLeaves(tmpGraph, sc)
+
+    prunedGraph.vertices.count should be(0)
+    prunedGraph.edges.count should be(0)
   }
 
 }
