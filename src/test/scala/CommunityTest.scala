@@ -2,8 +2,9 @@
   * Created by etrunon on 13/02/17.
   */
 
-import myThesis.MyMain.pruneLeaves
-import myThesis.{Community, UtilityFunctions, myVertex}
+import myThesis.MyMain.strategicCommunityFinder
+import myThesis.UtilityFunctions.{loadAndPrepareGraph, modularity, pruneLeaves, readGraph}
+import myThesis.{Community, myVertex}
 import org.apache.spark.graphx.Graph
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
@@ -41,7 +42,7 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   class Fixtures {
     val graphLoaded: Graph[(Long, Long), Long] = {
-      UtilityFunctions.readGraph(sc, edgeFile)
+      readGraph(sc, edgeFile)
     }
     val emptyVertex = new myVertex(0, 0, 0)
     val emptyCommunity = new Community(0, 0.0, new ListBuffer[myVertex]())
@@ -53,6 +54,13 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
   "Spark" should "load graph from file VERTICES" in {
     edgeFile = "RunData/Input/processed_unit.csv"
     val graph = fixture.graphLoaded
+    graph.vertices.count() should be(3)
+    graph.edges.count() should be(6)
+  }
+
+  it should "load graph with the preparation step" in {
+    edgeFile = "RunData/Input/processed_unit.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
     graph.vertices.count() should be(3)
     graph.edges.count() should be(6)
   }
@@ -343,30 +351,98 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
     edgeFile = "RunData/Input/processed_unitLeaves.csv"
 
     val graph = fixture.graphLoaded
-    val degrees = graph.degrees
-    // Generate a graph with the correct formatting
-    val tmpGraph: Graph[myVertex, Long] = graph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    val prunedGraph = pruneLeaves(tmpGraph, sc)
+    val prunedGraph = pruneLeaves(graph, sc)
 
     prunedGraph.vertices.count should be(3)
     prunedGraph.edges.count should be(6)
 
     // Get only vertices ids and they should be 1 2 3
     prunedGraph.vertices.collect().map(v => v._1).toSet should be(Set(1, 2, 3))
-    println("5")
   }
 
   it should "delete a single chain graph" in {
     edgeFile = "RunData/Input/processed_unitChain.csv"
 
     val graph = fixture.graphLoaded
-    val degrees = graph.degrees
-    // Generate a graph with the correct formatting
-    val tmpGraph: Graph[myVertex, Long] = graph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
-    val prunedGraph = pruneLeaves(tmpGraph, sc)
+    val prunedGraph = pruneLeaves(graph, sc)
 
     prunedGraph.vertices.count should be(0)
     prunedGraph.edges.count should be(0)
+  }
+
+  it should "delete all graph in Ministar" in {
+    edgeFile = "RunData/Input/processed_unitMinistar.csv"
+
+    val graph = fixture.graphLoaded
+    val prunedGraph = pruneLeaves(graph, sc)
+
+    prunedGraph.vertices.count should be(0)
+    prunedGraph.edges.count should be(0)
+
+  }
+
+  it should "delete all graph in Star" in {
+    edgeFile = "RunData/Input/processed_unitStar.csv"
+
+    val graph = fixture.graphLoaded
+    val prunedGraph = pruneLeaves(graph, sc)
+
+    prunedGraph.vertices.count should be(0)
+    prunedGraph.edges.count should be(0)
+
+  }
+
+  "Single modularity fun" should "be correct in Triangle graph (-1/12)" in {
+    edgeFile = "RunData/Input/processed_unit.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+
+    val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+      (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
+    }), graph.edges, new myVertex(0, -1, -1))
+
+    math.abs(modularity(newGraph) - (-1.0 / 12.0)) should be < epsilon
+  }
+
+  it should "be correct in MiniStar whole graph (-1/16)" in {
+    edgeFile = "RunData/Input/processed_unitMinistar.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+    graph.vertices.collect().foreach(println)
+
+    val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+      (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
+    }), graph.edges, new myVertex(0, -1, -1))
+
+    math.abs(modularity(newGraph) - (-1.0 / 16.0)) should be < epsilon
+  }
+
+  it should "be correct in Star whole graph (-90/800)" in {
+    edgeFile = "RunData/Input/processed_unitStar.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+
+    graph.vertices.collect().foreach(println)
+
+    val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+      (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
+    }), graph.edges, new myVertex(0, -1, -1))
+
+    math.abs(modularity(newGraph) - (-90.0 / 800.0)) should be < epsilon
+  }
+
+  "Delta optimization" should "compute the correct modularity value" in {
+    edgeFile = "RunData/Input/processed_mini1.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+
+    val commRDD = strategicCommunityFinder(graph, 100, sc)
+
+    commRDD.collect().foreach(c => {
+      val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+        (v._2.verId, new myVertex(v._2.degree, if (c.members.contains(v._2)) 1L else v._2.verId, v._2.verId))
+      }), graph.edges, new myVertex(0, -1, -1))
+
+      println(s"Community: ${c.members.foreach(v => v.toStringShort)} ==> mod: ${c.modularity} - single ${modularity(newGraph)})")
+
+      math.abs(c.modularity - modularity(newGraph)) should be < epsilon
+    })
   }
 
 }

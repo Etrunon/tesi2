@@ -11,7 +11,7 @@ package myThesis
   * @param cid community Id
   */
 @SerialVersionUID(123L)
-class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
+class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable with Ordered[myVertex] {
   val degree: Long = deg
   val verId: Long = vid
   var comId: Long = cid
@@ -20,6 +20,11 @@ class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
     * if it ends up being positive it means that putting it into that community was a mistake and it would make the score increase if removed.
     */
   var potentialLoss: Double = 0.0
+  var neighList: List[myVertex] = null
+
+  def setNeighbours(vList: List[myVertex]): Unit = {
+    neighList = vList
+  }
 
   override def toString: String = s"Vertex $verId degree $degree, member of comm $comId"
 
@@ -30,5 +35,16 @@ class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable {
       case obj: myVertex => obj.verId == this.verId
       case _ => false
     }
+  }
+
+  override def compare(that: myVertex): Int = {
+    if (that.verId > verId)
+      -1
+    else if (that == this)
+      0
+    else if (that.verId < verId)
+      1
+    else
+      throw new Exception
   }
 }

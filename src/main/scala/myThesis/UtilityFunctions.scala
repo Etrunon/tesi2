@@ -4,6 +4,7 @@ import java.io.{FileOutputStream, PrintWriter}
 
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
+import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable.ListBuffer
 
@@ -47,7 +48,10 @@ object UtilityFunctions {
   def modularity(graph: Graph[myVertex, Long]): Double = {
     val totEdges = graph.edges.count() / 2
 
-    val primaParte = graph.mapTriplets(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1L else 0L).edges.reduce((a, b) => new Edge[Long](0, 0, a.attr + b.attr)).attr / 2
+    // If srcCom and dstCom are equal save 1 and then make the sum of them all
+    val primaParte = graph.triplets.map(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1L else 0L).reduce((a, b) => a + b) / 2
+
+    println(s"mod: Prima parte $primaParte")
 
     //Lista di funzioni da riga-vertice a valore y da togliere alla mod.
     val functionList = graph.vertices.map(x =>
@@ -60,6 +64,58 @@ object UtilityFunctions {
     val secondaParte = graph.vertices.map(ver => functionList.map(f => f(ver)).sum).reduce((a, b) => a + b)
 
     (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
+  }
+
+  def loadAndPrepareGraph(file: String, sc: SparkContext): Graph[myVertex, VertexId] = {
+
+    // create the graph from the file and add util data: (degree, commId)
+    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, file)
+    val tmpGraph = pruneLeaves(graphLoaded, sc)
+    val degrees = tmpGraph.degrees
+    // Generate a graph with the correct formatting
+    tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+  }
+
+  def getVertexFromComm(commRDD: RDD[Community], sc: SparkContext): RDD[(Long, myVertex)] = {
+    val chee = commRDD.map(c => c.members.toList).reduce((a, b) => a ::: b)
+    sc.parallelize(chee.map(v => (v.verId, v)))
+  }
+
+
+  /**
+    * Functions to prune leaves recursively from the graph. It takes as input a graph "undirected" (each edge has its symmetric) and prune the present leaves
+    *
+    * @param graph to be pruned
+    * @param sc    spark context, to broadcast a filterlist
+    * @return
+    */
+  def pruneLeaves(graph: Graph[(Long, Long), Long], sc: SparkContext): Graph[(Long, Long), Long] = {
+    var removed = false
+    var graph2 = graph
+
+    do {
+      println(s"\n\nPrune: Vertices:")
+      graph2.vertices.collect().foreach(println)
+      println(s"\n\nPrune: edges:")
+      graph2.edges.collect().foreach(println)
+      println(s"\n\nPrune: Degrees:")
+      graph2.degrees.collect().foreach(println)
+
+      removed = false
+      val leaves = graph2.degrees.filter(v => v._2 <= 2)
+      println(s"\n\nPrune: leaves:")
+      leaves.collect().foreach(println)
+
+      if (leaves.count() > 0) {
+        val leavesBC = sc.broadcast(leaves.map(v => Set(v._1)).reduce((a, b) => a ++ b))
+        removed = true
+        val newVertices = graph2.vertices.filter(v => !leavesBC.value.contains(v._1))
+        val newEdges = graph2.edges.filter(e => !leavesBC.value.contains(e.srcId) && !leavesBC.value.contains(e.dstId))
+
+        graph2 = Graph(newVertices, newEdges)
+      }
+    } while (removed)
+    graph2
   }
 
 
