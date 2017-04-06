@@ -345,9 +345,6 @@ object MyMain {
     finale
   }
 
-
-
-
   def getVertexTriplets(vertices: RDD[(Long, myVertex)], triplets: RDD[myTriplet]): RDD[(myVertex, myVertex)] = {
     triplets.map(t => (t.scrId, t)).join(vertices).map(j => (j._2._1.dstId, j._2._2)).join(vertices).map(j => (j._2._1, j._2._2))
   }
@@ -381,7 +378,9 @@ object MyMain {
 
       println(s"Cycle $cycle")
       //Look through the frontier of each community and count how many edges they receive from which vertex
-      val commNeighCounts = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
+
+      // Expose vertices in the triplet to the point in which we have (myVertex, myVertex) "triplet" obj. This way we can see communities
+      val myVertmyVert = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
         val dstId: Long = j._2._1.dstAttr.verId
         val triplet: EdgeTriplet[myVertex, Long] = j._2._1
         val srcVertex: myVertex = j._2._2
@@ -390,7 +389,10 @@ object MyMain {
         val srcVer: myVertex = k._2._1._2
         val dstVer: myVertex = k._2._2
         (srcVer, dstVer)
-      }).groupBy(tri => tri._2.comId).map(group => {
+      })
+
+      val commNeighCounts = myVertmyVert.groupBy(tri => tri._2.comId).map(group => {
+
         //Count how many edges are from a vertex to the same community
         val currComm: Long = group._1
         val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
@@ -399,6 +401,10 @@ object MyMain {
         })
         (currComm, edgeCount)
       })
+
+      println(s"\n\t StrategicFinder: CommNeighCounts")
+      commNeighCounts.foreach(println)
+
       //Get the updated triplet objects
       val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
 
@@ -416,6 +422,9 @@ object MyMain {
         val baseNode = g._2.head._2
         (baseNode.comId, (baseNode, incomingEdgeMap))
       })
+
+      println(s"\n\t StrategicFinder: IncommEdges")
+      incomingCommEdges.collect().foreach(println)
 
       // Espose the index of community to operate a join
       val indexedComm = commRDD.map(co => (co.comId, co))
@@ -458,7 +467,7 @@ object MyMain {
       //      println(s"\tGreedy1: FinalImpr. = ${finalImprovement.size}")
 
 
-      println(s"\n\tFinalImprovement")
+      println(s"\n\t StrategicFinder: FinalImprovement")
       finalImprovement.foreach(println)
 
       var schedule = ListBuffer[(myVertex, Community)]()
@@ -475,7 +484,7 @@ object MyMain {
         schedule.++=(result)
       })
 
-      println(s"\n\n\n\tGreedy1: before schedule: ${schedule.length} ")
+      //      println(s"\n\n\n\tGreedy1: before schedule: ${schedule.length} ")
       //      schedule.sortBy(a=> a._1).foreach(println)
       schedule = schedule.groupBy(op => op._1).map(group => {
         //        println(s"Greedy1: before group")
@@ -488,7 +497,7 @@ object MyMain {
         newGroup
       }).reduce((a, b) => a ++ b)
 
-      println(s"\tGreedy1: after schedule: ${schedule.length} ")
+      //      println(s"\tGreedy1: after schedule: ${schedule.length} ")
       //      schedule.sortBy(a=> a._1).foreach(println)
 
       //      println(s"\n\nSchedule")
@@ -509,7 +518,7 @@ object MyMain {
         }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
       })
 
-      println(s"\tGreedy1: optSchedule: ${scheduleOptimized.length}")
+      //      println(s"\tGreedy1: optSchedule: ${scheduleOptimized.length}")
 
       if (scheduleOptimized.length < 1) {
 
@@ -567,20 +576,14 @@ object MyMain {
     // Select the community from which the node has to be removed and the amount of edges that it brings out
     val removeChangeCom = changeList.map(cl => (cl._1.comId, (cl._1, cl._3._1)))
 
+    println(s"\n\nChangeListDelta: AddChange")
+    addChangeCom.collect().foreach(println)
+
+    println(s"\n\nChangeListDelta: RemoveChange")
+    removeChangeCom.collect().foreach(println)
+
     // Select the communities and expose the index
     val exposedComm = commRDD.map(c => (c.comId, c))
-    //    exposedComm.collect().foreach(println)
-
-    //    println(s"\n\nAddChangeCom")
-    //    addChangeCom.map(ac => {
-    //      s"Comm ${ac._1} add ${ac._2._2}"
-    //    }).collect().foreach(println)
-    //    println(s"\n\nRemoveChangeComm")
-    //    removeChangeCom.map(rc => {
-    //      s"Comm ${rc._1} remove ${rc._2._2}"
-    //    }).collect().foreach(println)
-    //    println(s"\n\nExposedComm")
-    //    exposedComm.collect().foreach(println)
 
     val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.fullOuterJoin(addChangeCom).map(j => {
       val index: Long = j._1
@@ -606,9 +609,6 @@ object MyMain {
 
       comm
     })
-
-    //    println(s"Risultato finale")
-    //    newCommRDD.collect().foreach(println)
 
     newCommRDD
   }

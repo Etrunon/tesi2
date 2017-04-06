@@ -46,24 +46,25 @@ object UtilityFunctions {
   }
 
   def modularity(graph: Graph[myVertex, Long]): Double = {
-    val totEdges = graph.edges.count() / 2
+    if (graph.triplets.count() > 0) {
+      val totEdges = graph.edges.count() / 2.0
 
-    // If srcCom and dstCom are equal save 1 and then make the sum of them all
-    val primaParte = graph.triplets.map(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1L else 0L).reduce((a, b) => a + b) / 2
+      // If srcCom and dstCom are equal save 1 and then make the sum of them all
+      val primaParte = graph.triplets.map(trip => if (trip.srcAttr.comId == trip.dstAttr.comId) 1.0 else 0.0).reduce((a, b) => a + b) / 2.0
 
-    println(s"mod: Prima parte $primaParte")
+      //Lista di funzioni da riga-vertice a valore y da togliere alla mod.
+      val functionList = graph.vertices.map(x =>
+        List((pay: (VertexId, myVertex)) => if (pay._2.comId == x._2.comId && x._1 != pay._1) {
+          -pay._2.degree.toFloat * x._2.degree.toFloat / (2.0 * totEdges)
+        } else 0.0)
+      ).reduce((a, b) => a ::: b)
+      //Mappando ai vertici una funzione che mappa a tutte le funzioni nella mia lista ogni vertice e sommando tutto
+      // a ritroso si ha il risultato
+      val secondaParte = graph.vertices.map(ver => functionList.map(f => f(ver)).sum).reduce((a, b) => a + b)
 
-    //Lista di funzioni da riga-vertice a valore y da togliere alla mod.
-    val functionList = graph.vertices.map(x =>
-      List((pay: (VertexId, myVertex)) => if (pay._2.comId == x._2.comId && x._1 != pay._1) {
-        -pay._2.degree.toFloat * x._2.degree.toFloat / (2 * totEdges)
-      } else 0.0)
-    ).reduce((a, b) => a ::: b)
-    //Mappando ai vertici una funzione che mappa a tutte le funzioni nella mia lista ogni vertice e sommando tutto
-    // a ritroso si ha il risultato
-    val secondaParte = graph.vertices.map(ver => functionList.map(f => f(ver)).sum).reduce((a, b) => a + b)
-
-    (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
+      (1.0 / (4.0 * totEdges)) * (primaParte + secondaParte)
+    } else
+      0.0
   }
 
   def loadAndPrepareGraph(file: String, sc: SparkContext): Graph[myVertex, VertexId] = {
@@ -94,17 +95,8 @@ object UtilityFunctions {
     var graph2 = graph
 
     do {
-      println(s"\n\nPrune: Vertices:")
-      graph2.vertices.collect().foreach(println)
-      println(s"\n\nPrune: edges:")
-      graph2.edges.collect().foreach(println)
-      println(s"\n\nPrune: Degrees:")
-      graph2.degrees.collect().foreach(println)
-
       removed = false
       val leaves = graph2.degrees.filter(v => v._2 <= 2)
-      println(s"\n\nPrune: leaves:")
-      leaves.collect().foreach(println)
 
       if (leaves.count() > 0) {
         val leavesBC = sc.broadcast(leaves.map(v => Set(v._1)).reduce((a, b) => a ++ b))
@@ -115,6 +107,16 @@ object UtilityFunctions {
         graph2 = Graph(newVertices, newEdges)
       }
     } while (removed)
+
+    //Take away vertices without any edge (they're not returned with .degree)
+    if (graph2.vertices.count() > 0) {
+      val goodVer = if (graph2.triplets.count() > 0) graph2.triplets.map(t => Set(t.srcId, t.dstId)).reduce((a, b) => a ++ b) else Set[VertexId]()
+      val bcGoodVer = sc.broadcast(goodVer)
+      val newVer = graph2.vertices.filter(v => bcGoodVer.value.contains(v._1))
+
+      graph2 = Graph(newVer, graph2.edges)
+    }
+
     graph2
   }
 

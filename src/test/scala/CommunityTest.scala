@@ -5,6 +5,7 @@
 import myThesis.MyMain.strategicCommunityFinder
 import myThesis.UtilityFunctions.{loadAndPrepareGraph, modularity, pruneLeaves, readGraph}
 import myThesis.{Community, myVertex}
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx.Graph
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
@@ -25,6 +26,8 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
   private var sc: SparkContext = null
   val epsilon = math.pow(10, -6)
   var edgeFile = "RunData/Input/processed_unit.csv"
+  Logger.getLogger("org").setLevel(Level.ERROR)
+  Logger.getLogger("akka").setLevel(Level.ERROR)
 
   override protected def beforeAll(): Unit = {
     System.clearProperty("spark.driver.port")
@@ -403,7 +406,7 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
     math.abs(modularity(newGraph) - (-1.0 / 12.0)) should be < epsilon
   }
 
-  it should "be correct in MiniStar whole graph (-1/16)" in {
+  it should "be correct in MiniStar whole graph (0)" in {
     edgeFile = "RunData/Input/processed_unitMinistar.csv"
     val graph = loadAndPrepareGraph(edgeFile, sc)
     graph.vertices.collect().foreach(println)
@@ -412,10 +415,13 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
       (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
     }), graph.edges, new myVertex(0, -1, -1))
 
-    math.abs(modularity(newGraph) - (-1.0 / 16.0)) should be < epsilon
+    val result = modularity(newGraph)
+    println(s"Test result: $result, should be ${-1.0 / 16.0}")
+
+    math.abs(result - 0) should be < epsilon
   }
 
-  it should "be correct in Star whole graph (-90/800)" in {
+  it should "be correct in Star whole graph (0)" in {
     edgeFile = "RunData/Input/processed_unitStar.csv"
     val graph = loadAndPrepareGraph(edgeFile, sc)
 
@@ -425,21 +431,67 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
       (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
     }), graph.edges, new myVertex(0, -1, -1))
 
-    math.abs(modularity(newGraph) - (-90.0 / 800.0)) should be < epsilon
+    math.abs(modularity(newGraph) - 0) should be < epsilon
+  }
+
+  it should "be correct in DoubleTriangle whole graph (-3/25)" in {
+    edgeFile = "RunData/Input/processed_unitDoubleTriangle.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+
+    graph.vertices.collect().foreach(println)
+
+    val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+      (v._2.verId, new myVertex(v._2.degree, 1L, v._2.verId))
+    }), graph.edges, new myVertex(0, -1, -1))
+
+    val result = modularity(newGraph)
+    println(s"Test result: $result, should be ${-(3.0 / 25.0)}")
+
+    math.abs(result - (-3.0 / 25.0)) should be < epsilon
+  }
+
+  it should "be correct in DoubleTriangle only one triangle (-3/50)" in {
+    edgeFile = "RunData/Input/processed_unitDoubleTriangle.csv"
+    val graph = loadAndPrepareGraph(edgeFile, sc)
+
+    graph.vertices.collect().foreach(println)
+    val comm = List(1, 2, 3)
+
+    val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
+      (v._2.verId, new myVertex(v._2.degree, if (comm.contains(v._2.verId)) 1L else v._2.verId, v._2.verId))
+    }), graph.edges, new myVertex(0, -1, -1))
+
+    val result = modularity(newGraph)
+
+    println(s"\n\nComm Test: NewGraph vertices")
+    newGraph.vertices.collect().foreach(println)
+
+    println(s"Test result: $result, should be ${-3.0 / 50.0}")
+
+    math.abs(result - (-3.0 / 50.0)) should be < epsilon
   }
 
   "Delta optimization" should "compute the correct modularity value" in {
     edgeFile = "RunData/Input/processed_mini1.csv"
     val graph = loadAndPrepareGraph(edgeFile, sc)
 
-    val commRDD = strategicCommunityFinder(graph, 100, sc)
+
+    val commRDD = strategicCommunityFinder(graph, 2, sc)
+
+    println(s"f" * 200)
+    println(s"\n\nComm Test: Total Edges: ${graph.edges.count() / 2}")
+    println(s"\n\nComm Test: Communities found")
+    commRDD.collect().foreach(x => println(x))
 
     commRDD.collect().foreach(c => {
       val newGraph: Graph[myVertex, Long] = Graph.apply(graph.vertices.map(v => {
-        (v._2.verId, new myVertex(v._2.degree, if (c.members.contains(v._2)) 1L else v._2.verId, v._2.verId))
+        (v._2.verId, new myVertex(v._2.degree, if (c.members.contains(v._2)) -1000L else v._2.verId, v._2.verId))
       }), graph.edges, new myVertex(0, -1, -1))
 
-      println(s"Community: ${c.members.foreach(v => v.toStringShort)} ==> mod: ${c.modularity} - single ${modularity(newGraph)})")
+      println(s"\n\nComm Test: NewGraph vertices")
+      newGraph.vertices.collect().foreach(println)
+
+      println(s"Community ${c.comId}: ${c.shortMembers()} ==> mod: ${c.modularity} - single ${modularity(newGraph)})")
 
       math.abs(c.modularity - modularity(newGraph)) should be < epsilon
     })
