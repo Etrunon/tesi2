@@ -355,9 +355,6 @@ object MyMain {
     val result = ListBuffer[String]()
     result += "\nStrategic Community Finder V1 (Neighbours's Modularity)"
 
-    //    println(s"Vertices")
-    //    graph.vertices.collect().foreach(println)
-
     // Obtain an RDD containing every community
     var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
     // Saves edge count co a const
@@ -405,118 +402,52 @@ object MyMain {
       println(s"\n\t StrategicFinder: CommNeighCounts")
       commNeighCounts.foreach(println)
 
-      //Get the updated triplet objects
-      val updatedTriplets = getVertexTriplets(vertexRDD, triplets)
+      val commAndFrontier = commNeighCounts.join(commRDD.map(c => (c.comId, c))).map(res => (res._2._2, res._2._1))
 
-      // Get the incoming frontier for each community listing each neighbour and how many times it comes into me
-      // Group by destination Community
-      val incomingCommEdges = updatedTriplets.groupBy(t => t._2.comId).map(g => {
-        // Take the list of incoming edges and group it by SourceVertex Id and produce the
-        val incomingEdgeList = g._2.groupBy(vv => vv._1.verId).map(x => x._2.map(vv => ((vv._1.verId, vv._1), 1L)).reduce((a, b) => {
-          val verId: Long = a._1._1
-          val ver: myVertex = a._1._2
-          ((verId, ver), a._2 + b._2)
-        }))
+      val doableOperations = commAndFrontier.map(caf => {
+        val currComm = caf._1
+        val currMap = caf._2
 
-        val incomingEdgeMap: Map[(Long, myVertex), Long] = incomingEdgeList
-        val baseNode = g._2.head._2
-        (baseNode.comId, (baseNode, incomingEdgeMap))
-      })
-
-      println(s"\n\t StrategicFinder: IncommEdges")
-      incomingCommEdges.collect().foreach(println)
-
-      // Espose the index of community to operate a join
-      val indexedComm = commRDD.map(co => (co.comId, co))
-
-      // Compute the improve in modularity from joining each of the vertex of the frontier
-      val reworkedImprovements = incomingCommEdges.join(indexedComm).map(j => {
-        (j._2._2, j._2._1)
-      }).map(cmap => {
-        val community = cmap._1
-        val map = cmap._2._2
-        val dstver = cmap._2._1
-
-        val eachCommOperation = map.map(elem => (community, elem._1._2, community.potentialVertexGain(elem._1._2, elem._2, totEdges) + elem._1._2.potentialLoss)).toList
-        eachCommOperation.map(a => List(a)).reduce((a, b) => {
-          if (math.abs(a.head._3 - b.head._3) < math.pow(10, -6)) a ::: b else if (a.head._3 > b.head._3) a else b
+        val res = currMap.map(candidate => {
+          List[(Community, myVertex, Long, Double)]((currComm, candidate._1, candidate._2, currComm.potentialVertexGain(candidate._1, candidate._2, totEdges)))
+        }).reduce((a, b) => a ::: b).filter(elem => {
+          //Filter out those operation which improve less than zero
+          elem._4 + elem._2.potentialLoss > 0.0
         })
-      })
 
-      var finalImprovement = reworkedImprovements.map(a => a.map(b => Map(b._3 -> List((b._2, b._1))))).reduce((a, b) => {
-        a ::: b
-      }).reduce((c, d) => {
-        (c.keySet ++ d.keySet).map(i => (i, c.getOrElse(i, List[(myVertex, Community)]()) ::: d.getOrElse(i, List[(myVertex, Community)]()))).toMap
-      })
+        if (res.nonEmpty) {
+          val bestComOperation = res.reduce((a, b) => {
+            // Take only the best operation foreach community
+            val netA = a._4 + a._2.potentialLoss
+            val netB = b._4 + b._2.potentialLoss
 
-      //      println("reworkedImprovements")
-      //      reworkedImprovements.collect().foreach(println)
-      //
-      //      var finalImprovement = commNeighCounts.join(indexedComm).map(union => {
-      //        union._2._1.map(ver => {
-      //          (union._2._2.potentialVertexGain(ver._1, ver._2, totEdges) + ver._1.potentialLoss, List[(myVertex, Community)]((ver._1, union._2._2)))
-      //        })
-      //      }).reduce((a, b) => {
-      //        (a.keySet ++ b.keySet).map(i => (i, a.getOrElse(i, List[(myVertex, Community)]()) ::: b.getOrElse(i, List[(myVertex, Community)]()))).toMap
-      //      })
-
-      //      println(s"\tGreedy1: FinalImpr. = ${finalImprovement.size}")
-      //      finalImprovement = finalImprovement.filter(imp => {
-      //        imp._1 > 0.0
-      //      })
-      //      println(s"\tGreedy1: FinalImpr. = ${finalImprovement.size}")
-
-
-      println(s"\n\t StrategicFinder: FinalImprovement")
-      finalImprovement.foreach(println)
-
-      var schedule = ListBuffer[(myVertex, Community)]()
-      finalImprovement.keySet.toList.sorted.reverse.foreach(k => {
-
-        val curr = finalImprovement.get(k)
-        val result = mutable.ListBuffer[(myVertex, Community)]()
-        curr.foreach(change => {
-          change.foreach(tuple => {
-            tuple._2.modularity = k
-            result += tuple
+            if (netA >= netB) a else b
           })
-        })
-        schedule.++=(result)
-      })
 
-      //      println(s"\n\n\n\tGreedy1: before schedule: ${schedule.length} ")
-      //      schedule.sortBy(a=> a._1).foreach(println)
-      schedule = schedule.groupBy(op => op._1).map(group => {
-        //        println(s"Greedy1: before group")
-        //        group._2.foreach(println)
-        val newGroup = ListBuffer[(myVertex, Community)](group._2.reduce((a, b) => if (a._2.members.length > b._2.members.length) a else b))
+          bestComOperation
+        } else
+          null
+      }).filter(a => a != null)
 
-        //        println(s"Greedy1: after group")
-        //        newGroup.foreach(println)
-        //        println(s"      ----\n\n")
-        newGroup
-      }).reduce((a, b) => a ++ b)
+      println(s"\n\t StrategicFinder: DoableOperations")
+      doableOperations.foreach(println)
+
+      val exposeForScheduling = doableOperations.map(op => (op._2, op._1))
 
       //      println(s"\tGreedy1: after schedule: ${schedule.length} ")
       //      schedule.sortBy(a=> a._1).foreach(println)
 
       //      println(s"\n\nSchedule")
       //      schedule.foreach(println)
-      val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(schedule.toList, Set(), mutable.Map(), 0L)
+      val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(exposeForScheduling.collect().toList, Set(), mutable.Map(), 0L)
 
       //      println(s"\n\nSchedule Optimized")
       //      scheduleOptimized.foreach(println)
 
-      val scheduleWithPartingEdges = scheduleOptimized.map(sc => {
-        graph.triplets.map(tri => {
-          if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._1.comId)
-            (sc._1, sc._2, (1L, 0L))
-          else if (tri.srcAttr.verId == sc._1.verId && tri.dstAttr.comId == sc._2.comId)
-            (sc._1, sc._2, (0L, 1L))
-          else
-            (sc._1, sc._2, (0L, 0L))
-        }).reduce((a, b) => (a._1, a._2, (a._3._1 + b._3._1, a._3._2 + b._3._2)))
-      })
+      val bcScheduleOptimized = sc.broadcast(scheduleOptimized)
+      val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op)).map(op => {
+        (op._2, op._1, (op._2.connectingEdges, op._3))
+      }).collect()
 
       //      println(s"\tGreedy1: optSchedule: ${scheduleOptimized.length}")
 

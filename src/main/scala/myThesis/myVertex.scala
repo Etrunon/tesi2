@@ -21,6 +21,8 @@ class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable with Ordere
     */
   var potentialLoss: Double = 0.0
   var neighList: List[myVertex] = null
+  //Number of edges inside current community
+  var connectingEdges: Long = 0
 
   def setNeighbours(vList: List[myVertex]): Unit = {
     neighList = vList

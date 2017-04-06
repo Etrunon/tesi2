@@ -476,7 +476,7 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
     val graph = loadAndPrepareGraph(edgeFile, sc)
 
 
-    val commRDD = strategicCommunityFinder(graph, 2, sc)
+    val commRDD = strategicCommunityFinder(graph, 30, sc)
 
     println(s"f" * 200)
     println(s"\n\nComm Test: Total Edges: ${graph.edges.count() / 2}")

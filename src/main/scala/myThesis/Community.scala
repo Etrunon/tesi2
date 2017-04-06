@@ -56,6 +56,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
     val newVertexModularity = (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
     ver.potentialLoss = -newVertexModularity
     ver.comId = comId
+    ver.connectingEdges = newEdges
     modularity += newVertexModularity
   }
 
