@@ -176,7 +176,7 @@ object MyMain {
       })
 
       initialSchedule.reverse.groupBy(_._3).foreach(g => {
-        val tup = dynamicReachablityScheduler(g._2.map(t => (t._1, t._2)), mutSet, mutable.Map(), 0L)
+        val tup = Scheduler.dynamicReachablityScheduler(g._2.map(t => (t._1, t._2)), mutSet, mutable.Map(), 0L)
         mutSet = tup._2
         opt2 ++= tup._1
       })
@@ -237,119 +237,12 @@ object MyMain {
     result
   }
 
-  def dynamicReachablityScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): (List[(myVertex, Community)], Set[Long]) = {
-
-    //    println(" - " * mapIndex.toInt + s"BannList: $banSet")
-    var finale: List[(myVertex, Community)] = List()
-    list match {
-      case head :: Nil =>
-        if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
-          finale = List(head)
-        }
-        else {
-          finale = List()
-        }
-      case head :: tail =>
-        //        println(" - " * mapIndex.toInt + s"Head: $head")
-        //        println(" - " * mapIndex.toInt + s"tail: $tail")
-        // Else if the operation is banned return possible operation without this
-        if (banSet.contains(head._1.comId) || banSet.contains(head._2.comId)) {
-          finale = dynamicReachablityScheduler(tail, banSet, memoization, mapIndex + 1L)._1
-        }
-        //If current operation is not banned
-        else {
-          // Compute the values with current and without
-          val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
-            val x = List(head) ::: dynamicReachablityScheduler(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1L)._1
-            memoization(mapIndex) = x
-            x
-          } else
-            memoization.getOrElse(mapIndex, null)
-
-          val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1L, null) == null) {
-            val x = dynamicReachablityScheduler(tail, banSet, memoization, mapIndex + 2L)._1
-            memoization(mapIndex + 1L) = x
-            x
-          } else
-            memoization.getOrElse(mapIndex + 1L, null)
-
-          // Whichever is bigger is returned
-          //          println(" - " * mapIndex.toInt + s"${withFirst.size > withoutFirst.size} ${withFirst.size} > ${withoutFirst.size}")
-          if (withFirst.size >= withoutFirst.size) {
-            finale = withFirst
-          }
-          else {
-            finale = withoutFirst
-          }
-        }
-      case Nil =>
-    }
-    //    println(" - " * mapIndex.toInt + s"finale: $finale")
-    (finale, banSet)
-  }
-
-
-  /**
-    * Function that given a list of possible operations returns a list of compatible operation which should result in the maximized gain
-    * It uses dynamic programming with memoization (in the memoization and mapIndex parameters)
-    *
-    * @param list        list of operation (vertex to change, community toward change it)
-    * @param banSet      to be set Set(), on external call set of banned communities
-    * @param memoization to be set mutable.Map() on external call
-    * @param mapIndex    to be set at 0 on external call
-    * @return
-    */
-  def dynamicScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
-
-    var finale: List[(myVertex, Community)] = List()
-    list match {
-      case head :: Nil =>
-        if (!(banSet.contains(head._1.comId) || banSet.contains(head._2.comId))) {
-          finale = List(head)
-        }
-        else {
-          finale = List()
-        }
-      case head :: tail =>
-        // Else if the operation is banned return possible operation without this
-        if (banSet.contains(head._1.comId) || banSet.contains(head._2.comId)) {
-          finale = dynamicScheduler(tail, banSet, memoization, mapIndex + 1)
-        }
-        //If current operation is not banned
-        else {
-          // Compute the values with current and without
-          val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
-            val x = List(head) ::: dynamicScheduler(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
-            memoization(mapIndex) = x
-            x
-          } else
-            memoization.getOrElse(mapIndex, null)
-
-          val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1, null) == null) {
-            val x = dynamicScheduler(tail, banSet, memoization, mapIndex + 2)
-            memoization(mapIndex + 1) = x
-            x
-          } else
-            memoization.getOrElse(mapIndex + 1, null)
-
-          // Whichever is bigger is returned
-          if (withFirst.map(x => x._2.modularity).sum > withoutFirst.map(x => x._2.modularity).sum) {
-            finale = withFirst
-          }
-          else {
-            finale = withoutFirst
-          }
-        }
-      case Nil =>
-    }
-    finale
-  }
-
   def getVertexTriplets(vertices: RDD[(Long, myVertex)], triplets: RDD[myTriplet]): RDD[(myVertex, myVertex)] = {
     triplets.map(t => (t.scrId, t)).join(vertices).map(j => (j._2._1.dstId, j._2._2)).join(vertices).map(j => (j._2._1, j._2._2))
   }
 
   def strategicCommunityFinder(graph: Graph[myVertex, Long], maxCycle: Int, sc: SparkContext): RDD[Community] = {
+    // Set the maximum number of cycles. If less than zero, then set the maximum Long value
     val endCycle: Long = if (maxCycle >= 0) maxCycle else Long.MaxValue
     val initDate = System.currentTimeMillis
     val result = ListBuffer[String]()
@@ -361,11 +254,6 @@ object MyMain {
     val totEdges = graph.edges.count() / 2
 
     var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
-    val triplets: RDD[myTriplet] = graph.triplets.map(v => new myTriplet(v.srcAttr.verId, v.dstAttr.verId))
-    //    println(s"\n\nComunita' divise per membri")
-    //    commRDD.map(c => c.members).collect().foreach(println)
-    //    println(s"\n\nVertici")
-    //    vertexRDD.collect().foreach(println)
 
     var updated = false
     var comPrinted = false
@@ -399,9 +287,7 @@ object MyMain {
         (currComm, edgeCount)
       })
 
-      println(s"\n\t StrategicFinder: CommNeighCounts")
-      commNeighCounts.foreach(println)
-
+      // Join together the Community obj and its frontier vertex list
       val commAndFrontier = commNeighCounts.join(commRDD.map(c => (c.comId, c))).map(res => (res._2._2, res._2._1))
 
       val doableOperations = commAndFrontier.map(caf => {
@@ -417,7 +303,7 @@ object MyMain {
 
         if (res.nonEmpty) {
           val bestComOperation = res.reduce((a, b) => {
-            // Take only the best operation foreach community
+            // Take only the best operation for each community
             val netA = a._4 + a._2.potentialLoss
             val netB = b._4 + b._2.potentialLoss
 
@@ -429,27 +315,9 @@ object MyMain {
           null
       }).filter(a => a != null)
 
-      println(s"\n\t StrategicFinder: DoableOperations")
-      doableOperations.foreach(println)
-
       val exposeForScheduling = doableOperations.map(op => (op._2, op._1))
 
-      //      println(s"\tGreedy1: after schedule: ${schedule.length} ")
-      //      schedule.sortBy(a=> a._1).foreach(println)
-
-      //      println(s"\n\nSchedule")
-      //      schedule.foreach(println)
-      val scheduleOptimized: List[(myVertex, Community)] = dynamicScheduler(exposeForScheduling.collect().toList, Set(), mutable.Map(), 0L)
-
-      //      println(s"\n\nSchedule Optimized")
-      //      scheduleOptimized.foreach(println)
-
-      val bcScheduleOptimized = sc.broadcast(scheduleOptimized)
-      val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op)).map(op => {
-        (op._2, op._1, (op._2.connectingEdges, op._3))
-      }).collect()
-
-      //      println(s"\tGreedy1: optSchedule: ${scheduleOptimized.length}")
+      val scheduleOptimized: List[(myVertex, Community)] = Scheduler.dynamicScheduler(exposeForScheduling.collect().toList, Set(), mutable.Map(), 0L)
 
       if (scheduleOptimized.length < 1) {
 
@@ -457,22 +325,30 @@ object MyMain {
       }
       else {
         updated = true
+        val bcScheduleOptimized = sc.broadcast(scheduleOptimized.map(a => a._1.toStringShort + a._2.toString))
 
-        commRDD = changeListDelta(graph, commRDD, sc.parallelize(scheduleWithPartingEdges), totEdges)
+        val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op._2.toStringShort + op._1.toString)) map (op => {
+          (op._2, op._1, (op._2.connectingEdges, op._3))
+        })
+
+        println(s"\n\tSchedule with parting Edges (size ${scheduleWithPartingEdges.count})")
+        scheduleWithPartingEdges.collect().foreach(println)
+        println("\n")
+
+
+        commRDD = changeListDelta(graph, commRDD, scheduleWithPartingEdges, totEdges)
         commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
         vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
       }
 
-      //      if (scheduleOptimized.length < 3) {
-      comPrinted = true
-      commRDD.collect().sortBy(c => c.comId).foreach(println)
-      //      }
-      //      println("\n" + s"x" * 175 + "\n")
       cycle += 1
       if (cycle % 3 == 0) {
-        if (!comPrinted)
+        if (!comPrinted) {
           commRDD.collect().sortBy(c => c.comId).foreach(println)
+          println("\n")
+        }
       }
+      // ShutDown Line
       //      if (cycle == 3) {
       //        updated = false
       //    }
@@ -507,11 +383,11 @@ object MyMain {
     // Select the community from which the node has to be removed and the amount of edges that it brings out
     val removeChangeCom = changeList.map(cl => (cl._1.comId, (cl._1, cl._3._1)))
 
-    println(s"\n\nChangeListDelta: AddChange")
-    addChangeCom.collect().foreach(println)
-
-    println(s"\n\nChangeListDelta: RemoveChange")
-    removeChangeCom.collect().foreach(println)
+    //    println(s"\n\nChangeListDelta: AddChange")
+    //    addChangeCom.collect().foreach(println)
+    //
+    //    println(s"\n\nChangeListDelta: RemoveChange")
+    //    removeChangeCom.collect().foreach(println)
 
     // Select the communities and expose the index
     val exposedComm = commRDD.map(c => (c.comId, c))

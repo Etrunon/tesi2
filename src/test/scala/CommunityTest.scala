@@ -497,4 +497,8 @@ class CommunityTest extends FlatSpec with Matchers with BeforeAndAfterAll {
     })
   }
 
+  "Scheduler" should "schedule a single operazion" in {
+
+  }
+
 }

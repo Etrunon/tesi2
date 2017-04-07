@@ -21,6 +21,8 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
 
   override def toString: String = s"{ Community $comId:\t\t mod $modularity\t members: ${shortMembers()}\t}"
 
+  def toStringShort: String = s"Com: $comId"
+
   def shortMembers(): String = {
     var s: String = ""
     for (elem <- members) {

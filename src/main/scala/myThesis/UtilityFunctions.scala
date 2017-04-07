@@ -120,5 +120,4 @@ object UtilityFunctions {
     graph2
   }
 
-
 }
