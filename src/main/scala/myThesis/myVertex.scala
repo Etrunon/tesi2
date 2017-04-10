@@ -11,10 +11,10 @@ package myThesis
   * @param cid community Id
   */
 @SerialVersionUID(123L)
-class myVertex(deg: Long, cid: Long, vid: Long) extends Serializable with Ordered[myVertex] {
-  val degree: Long = deg
+class myVertex(vid: Long, cid: Long, deg: Long) extends Serializable with Ordered[myVertex] {
   val verId: Long = vid
   var comId: Long = cid
+  val degree: Long = deg
   /** *
     * This value should be normally negative. Meaning that tearing it off its community will result in a loss for it. Otherwise
     * if it ends up being positive it means that putting it into that community was a mistake and it would make the score increase if removed.

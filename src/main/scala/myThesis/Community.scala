@@ -14,10 +14,10 @@ import scala.collection.mutable.ListBuffer
   * @param memberList MemberList
   */
 @SerialVersionUID(124L)
-class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extends Serializable {
+class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extends Serializable {
   val comId: Long = cid
-  var modularity: Double = mod
   val members: ListBuffer[myVertex] = memberList
+  var modularity: Double = mod
 
   override def toString: String = s"{ Community $comId:\t\t mod $modularity\t members: ${shortMembers()}\t}"
 
@@ -25,7 +25,7 @@ class Community(cid: Long, mod: Double, memberList: ListBuffer[myVertex]) extend
 
   def shortMembers(): String = {
     var s: String = ""
-    for (elem <- members) {
+    for (elem <- members.sorted) {
       s += elem.toStringShort
     }
     s

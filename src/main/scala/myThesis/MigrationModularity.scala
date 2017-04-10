@@ -17,9 +17,9 @@ object MigrationModularity {
     result += "Migration"
 
     // Generate a graph with the correct formatting
-    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    val graph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(id, id, degOpt.getOrElse(0).toLong / 2) }
     // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, ListBuffer(ver._2), 0.0))
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
@@ -27,8 +27,8 @@ object MigrationModularity {
     // Moreover modularity of a single vertex is zero by default
     var oldCom: List[Long] = List()
     // CommId of the vertex will be 1, for testing purpose
-    val addingComm = new Community(100L, 0.0, ListBuffer())
-    val removingComm = new Community(200L, 0.0, ListBuffer())
+    val addingComm = new Community(100L, ListBuffer(), 0.0)
+    val removingComm = new Community(200L, ListBuffer(), 0.0)
     commRDD = commRDD.union(sc.parallelize(List(addingComm, removingComm))).distinct()
     // Foreach community inside the bundle
     for (com <- testBundle) {

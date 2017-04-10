@@ -43,7 +43,7 @@ object MyMain {
     //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28),
     //          List(1, 2, 3, 4, 5, 6, 14, 15, 30, 28, 23, 8)
   )
-  val timesToRepeat = 0
+  val timesToRepeat = 10
 
   def initContext(): Unit = {
     conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
@@ -75,17 +75,29 @@ object MyMain {
     //    res4.foreach(println)
     //    res5.foreach(println)
 
+    var executionCounter = 0
+    val totalsBuffer: ListBuffer[String] = ListBuffer()
+
     for (_ <- 0 to timesToRepeat) {
       //      val res5 = greedyFinderNeighNeigh(graph)
-      val commRDD = strategicCommunityFinder(graph, -1, sc)
+      val foundResult = strategicCommunityFinder(graph, -1, sc)
 
-      val result: ListBuffer[String] = ListBuffer("Final score")
-      commRDD.collect().foreach(c => result += c.toString)
+      var result: ListBuffer[String] = ListBuffer("Final score")
+      result += "$" * 200
+      result = result ++ foundResult._2
+      result += "Total modularity:" + foundResult._1.map(c => c.modularity).sum().toString
 
+      //%%%%%%% Total
+      totalsBuffer += s"\n!&(/£&£%\nExecution $executionCounter"
+      totalsBuffer ++= foundResult._2
+      totalsBuffer += "Total modularity:" + foundResult._1.map(c => c.modularity).sum().toString
+      executionCounter += 1
 
       saveResultBulk(result)
       result.foreach(println)
     }
+
+    totalsBuffer.foreach(println)
     // Line to make program stop and being able to view SparkWebUI
     //    readInt()
   }
@@ -96,7 +108,7 @@ object MyMain {
     result += "\nStrategic Community Finder V2 (Neighbours'neighbours)"
 
     // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, ListBuffer(ver._2), 0.0))
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
@@ -241,19 +253,19 @@ object MyMain {
     triplets.map(t => (t.scrId, t)).join(vertices).map(j => (j._2._1.dstId, j._2._2)).join(vertices).map(j => (j._2._1, j._2._2))
   }
 
-  def strategicCommunityFinder(graph: Graph[myVertex, Long], maxCycle: Int, sc: SparkContext): RDD[Community] = {
+  def strategicCommunityFinder(graph: Graph[myVertex, Long], maxCycle: Int, sc: SparkContext): (RDD[Community], ListBuffer[String]) = {
     // Set the maximum number of cycles. If less than zero, then set the maximum Long value
     val endCycle: Long = if (maxCycle >= 0) maxCycle else Long.MaxValue
     val initDate = System.currentTimeMillis
     val result = ListBuffer[String]()
-    result += "\nStrategic Community Finder V1 (Neighbours's Modularity)"
+    result += "Strategic Community Finder V1 (Neighbours's Modularity)"
 
     // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, 0.0, ListBuffer(ver._2)))
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, ListBuffer(ver._2), 0.0))
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
-    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc)
+    var vertexRDD: RDD[(Long, myVertex)] = getVertexFromComm(commRDD, sc).cache()
 
     var updated = false
     var comPrinted = false
@@ -261,7 +273,8 @@ object MyMain {
     do {
       comPrinted = false
 
-      println(s"Cycle $cycle")
+      //      println(s"Cycle $cycle")
+      result += s"Cycle $cycle"
       //Look through the frontier of each community and count how many edges they receive from which vertex
 
       // Expose vertices in the triplet to the point in which we have (myVertex, myVertex) "triplet" obj. This way we can see communities
@@ -315,9 +328,12 @@ object MyMain {
           null
       }).filter(a => a != null)
 
-      val exposeForScheduling = doableOperations.map(op => (op._2, op._1))
+      val exposeForScheduling = doableOperations.map(op => (op._2, op._1)).collect().toList
 
-      val scheduleOptimized: List[(myVertex, Community)] = Scheduler.dynamicScheduler(exposeForScheduling.collect().toList, Set(), mutable.Map(), 0L)
+      println(s"\n\nExposed")
+      exposeForScheduling.foreach(println)
+
+      val scheduleOptimized: List[(myVertex, Community)] = Scheduler.dynamicScheduler(exposeForScheduling)
 
       if (scheduleOptimized.length < 1) {
 
@@ -325,6 +341,8 @@ object MyMain {
       }
       else {
         updated = true
+
+        //ToDo sei qui bug? o-O
         val bcScheduleOptimized = sc.broadcast(scheduleOptimized.map(a => a._1.toStringShort + a._2.toString))
 
         val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op._2.toStringShort + op._1.toString)) map (op => {
@@ -342,12 +360,16 @@ object MyMain {
       }
 
       cycle += 1
-      if (cycle % 3 == 0) {
-        if (!comPrinted) {
-          commRDD.collect().sortBy(c => c.comId).foreach(println)
-          println("\n")
-        }
-      }
+      //      if (cycle % 3 == 0) {
+      //        if (!comPrinted) {
+      println(s"Community updated")
+      commRDD.collect().sortBy(c => c.comId).foreach(println)
+      println(s"%%" * 100)
+      println(s"%%" * 100)
+      println(s"%%" * 100)
+      //          println("\n")
+      //        }
+      //      }
       // ShutDown Line
       //      if (cycle == 3) {
       //        updated = false
@@ -357,10 +379,11 @@ object MyMain {
       }
     } while (updated)
 
+    commRDD.collect().foreach(l => result += l.toString)
 
     val endDate = System.currentTimeMillis
-    result += s"Execution time: ${(endDate - initDate) / 1000.0}\n\n"
-    commRDD
+    result += s"Execution time: ${(endDate - initDate) / 1000.0}"
+    (commRDD, result)
   }
 
   /**
@@ -379,30 +402,42 @@ object MyMain {
   def changeListDelta(graph: Graph[myVertex, VertexId], commRDD: RDD[Community], changeList: RDD[(myVertex, Community, (Long, Long))], totEdges: Long): RDD[Community] = {
 
     // Select the community and the node to which add and the amount of new edges
+    // Format (cId, (vertex, #archs) )
+    // cId destination community Id
+    // vertex, the vertex to be moved
+    // #archs the number of archs that it brings
     val addChangeCom = changeList.map(cl => (cl._2.comId, (cl._1, cl._3._2)))
+
     // Select the community from which the node has to be removed and the amount of edges that it brings out
+    // Format (cId, (vertex, #archs) )
+    // cId departure community Id
+    // vertex, the vertex to be moved
+    // #archs the number of archs that it brings out
     val removeChangeCom = changeList.map(cl => (cl._1.comId, (cl._1, cl._3._1)))
 
-    //    println(s"\n\nChangeListDelta: AddChange")
-    //    addChangeCom.collect().foreach(println)
+    println(s"\n\nChangeListDelta: AddChange")
+    addChangeCom.collect().foreach(println)
     //
-    //    println(s"\n\nChangeListDelta: RemoveChange")
-    //    removeChangeCom.collect().foreach(println)
+    println(s"\n\nChangeListDelta: RemoveChange")
+    removeChangeCom.collect().foreach(println)
 
     // Select the communities and expose the index
     val exposedComm = commRDD.map(c => (c.comId, c))
 
-    val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.fullOuterJoin(addChangeCom).map(j => {
+    val joined: RDD[(Community, (myVertex, Long), (myVertex, Long))] = exposedComm.leftOuterJoin(addChangeCom).map(j => {
       val index: Long = j._1
-      val community: Community = j._2._1.orNull
+      val community: Community = j._2._1
       val add: (myVertex, Long) = j._2._2.orNull
       (index, (community, add))
-    }).fullOuterJoin(removeChangeCom).map(j => {
-      val community: Community = j._2._1.orNull._1
-      val add: (myVertex, Long) = j._2._1.orNull._2
+    }).leftOuterJoin(removeChangeCom).map(j => {
+      val community: Community = j._2._1._1
+      val add: (myVertex, Long) = j._2._1._2
       val remove: (myVertex, Long) = j._2._2.orNull
       (community, add, remove)
     })
+
+    println(s"\n\nJoined Operation RDD!!!")
+    joined.collect().foreach(println)
 
     val newCommRDD = joined.map(j => {
       val comm = j._1

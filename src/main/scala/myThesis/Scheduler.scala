@@ -17,7 +17,7 @@ object Scheduler {
     * @param mapIndex    to be set at 0 on external call
     * @return
     */
-  def dynamicScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
+  private def dynamicSchedulerInner(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): List[(myVertex, Community)] = {
 
     var finale: List[(myVertex, Community)] = List()
     list match {
@@ -31,19 +31,19 @@ object Scheduler {
       case head :: tail =>
         // Else if the operation is banned return possible operation without this
         if (banSet.contains(head._1.comId) || banSet.contains(head._2.comId)) {
-          finale = dynamicScheduler(tail, banSet, memoization, mapIndex + 1)
+          finale = dynamicSchedulerInner(tail, banSet, memoization, mapIndex + 1)
         } else {
           //If current operation is not banned
           // Compute the values with current and without
           val withFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex, null) == null) {
-            val x = List(head) ::: dynamicScheduler(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
+            val x = List(head) ::: dynamicSchedulerInner(tail, banSet ++ Set(head._2.comId, head._1.comId), memoization, mapIndex + 1)
             memoization(mapIndex) = x
             x
           } else
             memoization.getOrElse(mapIndex, null)
 
           val withoutFirst: List[(myVertex, Community)] = if (memoization.getOrElse(mapIndex + 1, null) == null) {
-            val x = dynamicScheduler(tail, banSet, memoization, mapIndex + 2)
+            val x = dynamicSchedulerInner(tail, banSet, memoization, mapIndex + 2)
             memoization(mapIndex + 1) = x
             x
           } else
@@ -63,6 +63,17 @@ object Scheduler {
     }
     finale
   }
+
+  /**
+    * Wrapper function, to be ale to call easily Scheduler from the outside
+    *
+    * @param list
+    * @return
+    */
+  def dynamicScheduler(list: List[(myVertex, Community)]): List[(myVertex, Community)] = {
+    dynamicSchedulerInner(list, Set(), mutable.Map(), 0L)
+  }
+
 
   def dynamicReachablityScheduler(list: List[(myVertex, Community)], banSet: Set[Long], memoization: mutable.Map[Long, List[(myVertex, Community)]], mapIndex: Long): (List[(myVertex, Community)], Set[Long]) = {
 

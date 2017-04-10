@@ -74,7 +74,7 @@ object UtilityFunctions {
     val tmpGraph = pruneLeaves(graphLoaded, sc)
     val degrees = tmpGraph.degrees
     // Generate a graph with the correct formatting
-    tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(degOpt.getOrElse(0).toLong / 2, id, id) }
+    tmpGraph.outerJoinVertices(degrees) { (id, _, degOpt) => new myVertex(id, id, degOpt.getOrElse(0).toLong / 2) }
   }
 
   def getVertexFromComm(commRDD: RDD[Community], sc: SparkContext): RDD[(Long, myVertex)] = {

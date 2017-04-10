@@ -1,0 +1,2 @@
+REGEX ((x)|(s:)|(,))(( 28)|( 27))
+trova 27 o 28 (i vertici duplicati) solamente quando sono un ID di vertice e non id di comunità

@@ -21,7 +21,7 @@ object BulkModularity {
       val innerTimeInit = System.currentTimeMillis()
       // (Degree, CommId)
       val tmpGraph: Graph[myVertex, Long] = graphLoaded.outerJoinVertices(degrees) { (id, _, degOpt) =>
-        new myVertex(degOpt.getOrElse(0).toLong / 2, if (tmpComm.contains(id)) 1L else id, id)
+        new myVertex(id, if (tmpComm.contains(id)) 1L else id, degOpt.getOrElse(0).toLong / 2)
       }
       //      println(s"Modularity of $tmpComm:\t ${modularity(graph)}")
       val comModularity = modularity(tmpGraph)
