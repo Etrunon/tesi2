@@ -13,7 +13,7 @@ import scala.collection.mutable.ListBuffer
   */
 object UtilityFunctions {
 
-  def readGraph(sc: SparkContext, edgeFile: String): Graph[(Long, Long), Long] = {
+  def readGraph(edgeFile: String, sc: SparkContext): Graph[(Long, Long), Long] = {
     val edgeDelimiter = ","
 
     // Parse the input file. If there are 2 int on each line edge weight is 1 by default. If there are 3 input on each line
@@ -70,7 +70,7 @@ object UtilityFunctions {
   def loadAndPrepareGraph(file: String, sc: SparkContext): Graph[myVertex, VertexId] = {
 
     // create the graph from the file and add util data: (degree, commId)
-    val graphLoaded: Graph[(Long, Long), Long] = readGraph(sc, file)
+    val graphLoaded: Graph[(Long, Long), Long] = readGraph(file, sc)
     val tmpGraph = pruneLeaves(graphLoaded, sc)
     val degrees = tmpGraph.degrees
     // Generate a graph with the correct formatting

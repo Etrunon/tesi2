@@ -1,14 +1,14 @@
 package tests
 
 import myThesis.{Community, myVertex}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.collection.mutable.ListBuffer
 
 /**
   * Created by etrunon on 10/04/17.
   */
-class myStructuresTests extends FlatSpec with Matchers with BeforeAndAfterAll {
+class myStructuresTests extends FlatSpec with Matchers {
   def fixture = new Fixtures
 
   class Fixtures {

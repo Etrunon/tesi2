@@ -36,8 +36,8 @@ class SparkTests extends FlatSpec with Matchers with BeforeAndAfterAll {
   }
 
   class Fixtures {
-    val graphLoaded: Graph[(Long, Long), Long] = {
-      readGraph(sc, edgeFile)
+    def graphLoaded: Graph[(Long, Long), Long] = {
+      readGraph(edgeFile, sc)
     }
     val emptyVertex = new myVertex(0, 0, 0)
     val emptyCommunity = new Community(0, new ListBuffer[myVertex](), 0.0)

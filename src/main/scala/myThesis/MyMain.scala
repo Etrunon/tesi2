@@ -84,6 +84,9 @@ object MyMain {
 
       var result: ListBuffer[String] = ListBuffer("Final score")
       result += "$" * 200
+      result += "$" * 200
+      result += "$" * 200
+      result += "$" * 200
       result = result ++ foundResult._2
       result += "Total modularity:" + foundResult._1.map(c => c.modularity).sum().toString
 
@@ -261,7 +264,7 @@ object MyMain {
     result += "Strategic Community Finder V1 (Neighbours's Modularity)"
 
     // Obtain an RDD containing every community
-    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, ListBuffer(ver._2), 0.0))
+    var commRDD = graph.vertices.map(ver => new Community(ver._2.comId, ListBuffer(ver._2), 0.0)).cache
     // Saves edge count co a const
     val totEdges = graph.edges.count() / 2
 
@@ -326,7 +329,7 @@ object MyMain {
           bestComOperation
         } else
           null
-      }).filter(a => a != null)
+      }).filter(a => a != null).cache
 
       val exposeForScheduling = doableOperations.map(op => (op._2, op._1)).collect().toList
 
@@ -342,19 +345,20 @@ object MyMain {
       else {
         updated = true
 
-        //ToDo sei qui bug? o-O
         val bcScheduleOptimized = sc.broadcast(scheduleOptimized.map(a => a._1.toStringShort + a._2.toString))
 
-        val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op._2.toStringShort + op._1.toString)) map (op => {
+        println(s"\nBcScheduleOptimized")
+        bcScheduleOptimized.value.foreach(println)
+
+        val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op._2.toStringShort + op._1.toString)).map(op => {
           (op._2, op._1, (op._2.connectingEdges, op._3))
-        })
+        }).cache()
 
         println(s"\n\tSchedule with parting Edges (size ${scheduleWithPartingEdges.count})")
         scheduleWithPartingEdges.collect().foreach(println)
         println("\n")
 
-
-        commRDD = changeListDelta(graph, commRDD, scheduleWithPartingEdges, totEdges)
+        commRDD = changeListDelta(graph, commRDD, scheduleWithPartingEdges, totEdges).cache
         commRDD = commRDD.map(c => if (c.members.length < 1) null else c).filter(_ != null).distinct()
         vertexRDD = commRDD.flatMap(c => c.members).map(v => (v.verId, v))
       }
@@ -364,7 +368,6 @@ object MyMain {
       //        if (!comPrinted) {
       println(s"Community updated")
       commRDD.collect().sortBy(c => c.comId).foreach(println)
-      println(s"%%" * 100)
       println(s"%%" * 100)
       println(s"%%" * 100)
       //          println("\n")
@@ -384,6 +387,12 @@ object MyMain {
     val endDate = System.currentTimeMillis
     result += s"Execution time: ${(endDate - initDate) / 1000.0}"
     (commRDD, result)
+  }
+
+  def lineErrorSeparator(): Unit = {
+    println("!" * 200)
+    println("!" * 200)
+    println("!" * 200)
   }
 
   /**
@@ -415,11 +424,6 @@ object MyMain {
     // #archs the number of archs that it brings out
     val removeChangeCom = changeList.map(cl => (cl._1.comId, (cl._1, cl._3._1)))
 
-    println(s"\n\nChangeListDelta: AddChange")
-    addChangeCom.collect().foreach(println)
-    //
-    println(s"\n\nChangeListDelta: RemoveChange")
-    removeChangeCom.collect().foreach(println)
 
     // Select the communities and expose the index
     val exposedComm = commRDD.map(c => (c.comId, c))
@@ -435,9 +439,6 @@ object MyMain {
       val remove: (myVertex, Long) = j._2._2.orNull
       (community, add, remove)
     })
-
-    println(s"\n\nJoined Operation RDD!!!")
-    joined.collect().foreach(println)
 
     val newCommRDD = joined.map(j => {
       val comm = j._1
