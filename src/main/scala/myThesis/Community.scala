@@ -18,6 +18,7 @@ class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extend
   val comId: Long = cid
   val members: ListBuffer[myVertex] = memberList
   var modularity: Double = mod
+  members.map(v => v.community = this)
 
   override def toString: String = s"{ Community $comId:\t\t mod $modularity\t members: ${shortMembers()}\t}"
 
@@ -62,6 +63,7 @@ class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extend
       ver.potentialLoss = -newVertexModularity
       ver.comId = comId
       ver.connectingEdges = newEdges
+      ver.community = this
       modularity += newVertexModularity
     }
   }
@@ -109,9 +111,9 @@ class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extend
     * @param totEdges total edges of graph, needed as constant
     * @return modularity gain
     */
-  def potentialCommunityGain(com: Community, potEdges: Map[Long, Long], totEdges: Long): Double = {
+  def potentialCommunityGain(com: Community, potEdges: Map[myVertex, Long], totEdges: Long): Double = {
     com.members.map(ver => {
-      this.potentialVertexGain(ver, potEdges.getOrElse(ver.verId, 0), totEdges)
+      this.potentialVertexGain(ver, potEdges.getOrElse(ver, 0), totEdges)
     }).sum
   }
 

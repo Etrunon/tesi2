@@ -256,6 +256,34 @@ object MyMain {
     triplets.map(t => (t.scrId, t)).join(vertices).map(j => (j._2._1.dstId, j._2._2)).join(vertices).map(j => (j._2._1, j._2._2))
   }
 
+  def findFrontier(graph: Graph[myVertex, Long], vertexRDD: RDD[(Long, myVertex)], commRDD: RDD[Community]): RDD[(Community, Map[myVertex, Long])] = {
+    // Expose vertices in the triplet to the point in which we have (myVertex, myVertex) "triplet" obj. This way we can see communities
+    val myVertmyVert = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
+      val dstId: Long = j._2._1.dstAttr.verId
+      val triplet: EdgeTriplet[myVertex, Long] = j._2._1
+      val srcVertex: myVertex = j._2._2
+      (dstId, (triplet, srcVertex))
+    }).join(vertexRDD).map(k => {
+      val srcVer: myVertex = k._2._1._2
+      val dstVer: myVertex = k._2._2
+      (srcVer, dstVer)
+    })
+
+    val commNeighCounts = myVertmyVert.groupBy(tri => tri._2.comId).map(group => {
+
+      //Count how many edges are from a vertex to the same community
+      val currComm: Long = group._1
+      val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
+        val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
+        countedGroup
+      })
+      (currComm, edgeCount)
+    })
+
+    // Join together the Community obj and its frontier vertex list
+    commNeighCounts.join(commRDD.map(c => (c.comId, c))).map(res => (res._2._2, res._2._1))
+  }
+
   def strategicCommunityFinder(graph: Graph[myVertex, Long], maxCycle: Int, sc: SparkContext): (RDD[Community], ListBuffer[String]) = {
     // Set the maximum number of cycles. If less than zero, then set the maximum Long value
     val endCycle: Long = if (maxCycle >= 0) maxCycle else Long.MaxValue
@@ -276,37 +304,9 @@ object MyMain {
     do {
       comPrinted = false
 
-      //      println(s"Cycle $cycle")
       result += s"Cycle $cycle"
       //Look through the frontier of each community and count how many edges they receive from which vertex
-
-      // Expose vertices in the triplet to the point in which we have (myVertex, myVertex) "triplet" obj. This way we can see communities
-      val myVertmyVert = graph.triplets.map(tri => (tri.srcAttr.verId, tri)).join(vertexRDD).map(j => {
-        val dstId: Long = j._2._1.dstAttr.verId
-        val triplet: EdgeTriplet[myVertex, Long] = j._2._1
-        val srcVertex: myVertex = j._2._2
-        (dstId, (triplet, srcVertex))
-      }).join(vertexRDD).map(k => {
-        val srcVer: myVertex = k._2._1._2
-        val dstVer: myVertex = k._2._2
-        (srcVer, dstVer)
-      })
-
-      val commNeighCounts = myVertmyVert.groupBy(tri => tri._2.comId).map(group => {
-
-        //Count how many edges are from a vertex to the same community
-        val currComm: Long = group._1
-        val edgeCount = group._2.filterNot(g => g._1.comId == currComm).groupBy(dver => dver._1.verId).map(srcGroup => {
-          val countedGroup = srcGroup._2.map(g => (g._1, 1L)).reduce((a, b) => (a._1, a._2 + b._2))
-          countedGroup
-        })
-        (currComm, edgeCount)
-      })
-
-      // Join together the Community obj and its frontier vertex list
-      val commAndFrontier = commNeighCounts.join(commRDD.map(c => (c.comId, c))).map(res => (res._2._2, res._2._1))
-
-      val doableOperations = commAndFrontier.map(caf => {
+      val doableOperations = findFrontier(graph, vertexRDD, commRDD).map(caf => {
         val currComm = caf._1
         val currMap = caf._2
 
@@ -342,9 +342,21 @@ object MyMain {
         updated = true
 
         // New code without dynamic scheduler
-        val euristicOptimized = doableOperations.map(op => {
+        //ToDo find bug for which there is sometimes a diplicated operation
+        val euristicOptimized = doableOperations.mapPartitions(it => {
+          //First we map the partitions and find the optimum set of operation in each partition
+          if (it.nonEmpty) {
+            val list = it.toList
+            val forScheduler = list.map(op => (op._2, op._1))
+            val optim = Scheduler.dynamicScheduler(forScheduler).map(oop => oop._1.toString + oop._2.toString)
+            list.filter(f => optim.contains(f._2.toString + f._1.toString)).toIterator
+          } else
+            it
+        }).map(op => {
+          // Then we reduce the result into a global view
           Map(op._2 -> (op._1, op._2.connectingEdges, op._3))
         }).reduce((a, b) => {
+          // Teh resulting set of operation is no more optimum but, should be good enough
           (a.keySet ++ b.keySet).map(k => {
             val ka = a.getOrElse(k, null)
             val kb = b.getOrElse(k, null)
@@ -354,7 +366,8 @@ object MyMain {
             else if (kb == null)
               k -> ka
             else {
-              if (ka._1.members.size > kb._1.members.size)
+              //              if (ka._1.members.size > kb._1.members.size)
+              if (ka._1.modularity > kb._1.modularity)
                 k -> ka
               else
                 k -> kb
@@ -378,6 +391,47 @@ object MyMain {
       commRDD.collect().sortBy(c => c.comId).foreach(println)
       println(s"%%" * 100)
       println(s"%%" * 100)
+
+      println(s"Now we try to merge confining communities")
+      val newFrontier = findFrontier(graph, vertexRDD, commRDD)
+      val joinedComms = newFrontier.map(c => (c._1.comId, c)).join(commRDD.map(c => (c.comId, c))).map(j => {
+        val com1: Community = j._2._1._1
+        val com2: Community = j._2._2
+        val frontier: Map[myVertex, Long] = j._2._1._2
+        (com1, frontier, com2)
+      })
+
+      println(s"đ" * 200)
+      println(s"đ" * 200)
+      println(s"đ" * 200)
+      println(s"New Frontier")
+
+      val commCommFrontier = newFrontier.map(nf => {
+        val comFrontier = nf._2.map(t => Map(t._1.community -> Map(t._1 -> t._2))).reduce((a, b) => {
+          (a.keySet ++ b.keySet).map(k => {
+            val ka = a.getOrElse(k, null)
+            val kb = b.getOrElse(k, null)
+
+            if (ka == null)
+              k -> kb
+            else if (kb == null)
+              k -> ka
+            else
+              k -> (ka ++ kb)
+          }).toMap
+        })
+        (nf._1, comFrontier)
+      })
+
+      val doableMerges = commCommFrontier.map(ccf => {
+        val curCom = ccf._1
+        val curComFrontier = ccf._2
+        val gain = curComFrontier.map(neiC => {
+          (neiC._1, curCom.potentialCommunityGain(neiC._1, neiC._2, totEdges))
+        }).toList.filter(f => f._2 > 0.0)
+        (curCom, gain)
+      }).collect().foreach(println)
+
       if (cycle == endCycle) {
         updated = false
       }
