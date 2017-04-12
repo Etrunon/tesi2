@@ -46,7 +46,7 @@ object MyMain {
   val timesToRepeat = 10
 
   def initContext(): Unit = {
-    conf = new SparkConf().setAppName("CommTesi2").setMaster("local[3]")
+    conf = new SparkConf().setAppName("CommTesi2").setMaster("local[1]")
     sc = new SparkContext(conf)
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
@@ -331,28 +331,38 @@ object MyMain {
           null
       }).filter(a => a != null).cache
 
-      val exposeForScheduling = doableOperations.map(op => (op._2, op._1)).collect().toList
+      println(s"\n\tDoableOperations (size ${doableOperations.count})")
+      doableOperations.collect().foreach(println)
+      println("\n")
 
-      println(s"\n\nExposed")
-      exposeForScheduling.foreach(println)
-
-      val scheduleOptimized: List[(myVertex, Community)] = Scheduler.dynamicScheduler(exposeForScheduling)
-
-      if (scheduleOptimized.length < 1) {
-
+      if (doableOperations.count < 1) {
         updated = false
       }
       else {
         updated = true
 
-        val bcScheduleOptimized = sc.broadcast(scheduleOptimized.map(a => a._1.toStringShort + a._2.toString))
+        // New code without dynamic scheduler
+        val euristicOptimized = doableOperations.map(op => {
+          Map(op._2 -> (op._1, op._2.connectingEdges, op._3))
+        }).reduce((a, b) => {
+          (a.keySet ++ b.keySet).map(k => {
+            val ka = a.getOrElse(k, null)
+            val kb = b.getOrElse(k, null)
 
-        println(s"\nBcScheduleOptimized")
-        bcScheduleOptimized.value.foreach(println)
+            if (ka == null)
+              k -> kb
+            else if (kb == null)
+              k -> ka
+            else {
+              if (ka._1.members.size > kb._1.members.size)
+                k -> ka
+              else
+                k -> kb
+            }
+          }).toMap
+        }).toList.map(op => (op._1, op._2._1, (op._2._2, op._2._3)))
 
-        val scheduleWithPartingEdges = doableOperations.filter(op => bcScheduleOptimized.value.contains(op._2.toStringShort + op._1.toString)).map(op => {
-          (op._2, op._1, (op._2.connectingEdges, op._3))
-        }).cache()
+        val scheduleWithPartingEdges = sc.parallelize(euristicOptimized).cache()
 
         println(s"\n\tSchedule with parting Edges (size ${scheduleWithPartingEdges.count})")
         scheduleWithPartingEdges.collect().foreach(println)
@@ -364,19 +374,10 @@ object MyMain {
       }
 
       cycle += 1
-      //      if (cycle % 3 == 0) {
-      //        if (!comPrinted) {
-      println(s"Community updated")
+      println(s"\nCommunity updated")
       commRDD.collect().sortBy(c => c.comId).foreach(println)
       println(s"%%" * 100)
       println(s"%%" * 100)
-      //          println("\n")
-      //        }
-      //      }
-      // ShutDown Line
-      //      if (cycle == 3) {
-      //        updated = false
-      //    }
       if (cycle == endCycle) {
         updated = false
       }
@@ -424,7 +425,6 @@ object MyMain {
     // #archs the number of archs that it brings out
     val removeChangeCom = changeList.map(cl => (cl._1.comId, (cl._1, cl._3._1)))
 
-
     // Select the communities and expose the index
     val exposedComm = commRDD.map(c => (c.comId, c))
 
@@ -437,8 +437,12 @@ object MyMain {
       val community: Community = j._2._1._1
       val add: (myVertex, Long) = j._2._1._2
       val remove: (myVertex, Long) = j._2._2.orNull
+
       (community, add, remove)
     })
+
+    println(s"\nJoinedOperations: ")
+    joined.collect().foreach(println)
 
     val newCommRDD = joined.map(j => {
       val comm = j._1
@@ -446,9 +450,9 @@ object MyMain {
       val remove = j._3
 
       if (add != null)
-        comm.addToComm(add._1, add._2, totEdges)
+        comm.addToComm(add, totEdges)
       if (remove != null)
-        comm.removeFromComm(remove._1, remove._2, totEdges)
+        comm.removeFromComm(remove, totEdges)
 
       comm
     })

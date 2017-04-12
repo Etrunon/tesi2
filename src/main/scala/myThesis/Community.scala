@@ -48,34 +48,42 @@ class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extend
   /**
     * Function that add the given vertex to the community and updates modularity as result
     *
-    * @param ver      vertex to add
-    * @param newEdges edges it brings
-    * @param totEdges graph constant
+    * @param operation Couple containing: (vertex to add, number of edges it brings in)
+    * @param totEdges  graph constant
     */
-  def addToComm(ver: myVertex, newEdges: Long, totEdges: Long): Unit = {
-    val reducingComp = membersReducingComp(ver, totEdges)
-    members += ver
-    val newVertexModularity = (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
-    ver.potentialLoss = -newVertexModularity
-    ver.comId = comId
-    ver.connectingEdges = newEdges
-    modularity += newVertexModularity
+  def addToComm(operation: (myVertex, Long), totEdges: Long): Unit = {
+    val ver = operation._1
+    val newEdges = operation._2
+
+    if (!members.contains(ver)) {
+      val reducingComp = membersReducingComp(ver, totEdges)
+      members += ver
+      val newVertexModularity = (1.0 / (4.0 * totEdges)) * (newEdges + reducingComp)
+      ver.potentialLoss = -newVertexModularity
+      ver.comId = comId
+      ver.connectingEdges = newEdges
+      modularity += newVertexModularity
+    }
   }
 
   /**
     * Remove the given vertex from the community and updates modularity score as result
     *
-    * @param ver      vertex to remove
-    * @param oldEdges edges it brings out
-    * @param totEdges graph constant
+    * @param operation Couple containing: (verted to remove, number of edges it brings out)
+    * @param totEdges  graph constant
     */
-  def removeFromComm(ver: myVertex, oldEdges: Long, totEdges: Long): Unit = {
-    members -= ver
-    if (members.length > 1) {
-      val reducingComp = membersReducingComp(ver, totEdges)
-      modularity += (1.0 / (4.0 * totEdges)) * (-oldEdges - reducingComp)
-    } else {
-      modularity = 0.0
+  def removeFromComm(operation: (myVertex, Long), totEdges: Long): Unit = {
+    val ver = operation._1
+    val oldEdges = operation._2
+
+    if (members.contains(ver)) {
+      members -= ver
+      if (members.length > 1) {
+        val reducingComp = membersReducingComp(ver, totEdges)
+        modularity += (1.0 / (4.0 * totEdges)) * (-oldEdges - reducingComp)
+      } else {
+        modularity = 0.0
+      }
     }
   }
 

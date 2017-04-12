@@ -59,11 +59,11 @@ object MigrationModularity {
         commRDD = commRDD.map(c => {
           // If the community is the old one
           if (c.comId == switchingVertex.comId)
-            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
+            c.removeFromComm((switchingVertex, edgesChange._1), totEdges)
 
           //Else if the community is the new one
           else if (c.comId == addingComm.comId)
-            c.addToComm(switchingVertex, edgesChange._2, totEdges)
+            c.addToComm((switchingVertex, edgesChange._2), totEdges)
           c
         })
       })
@@ -90,11 +90,11 @@ object MigrationModularity {
         commRDD = commRDD.map(c => {
           // If the community is the old one
           if (c.comId == switchingVertex.comId)
-            c.removeFromComm(switchingVertex, edgesChange._1, totEdges)
+            c.removeFromComm((switchingVertex, edgesChange._1), totEdges)
 
           //Else if the community is the new one
           else if (c.comId == removingComm.comId)
-            c.addToComm(switchingVertex, edgesChange._2, totEdges)
+            c.addToComm((switchingVertex, edgesChange._2), totEdges)
           c
         })
       })
