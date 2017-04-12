@@ -114,7 +114,7 @@ class Community(cid: Long, memberList: ListBuffer[myVertex], mod: Double) extend
   def potentialCommunityGain(com: Community, potEdges: Map[myVertex, Long], totEdges: Long): Double = {
     com.members.map(ver => {
       this.potentialVertexGain(ver, potEdges.getOrElse(ver, 0), totEdges)
-    }).sum
+    }).sum + com.modularity
   }
 
   override def equals(obj: scala.Any): Boolean = {

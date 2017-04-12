@@ -405,6 +405,7 @@ object MyMain {
       println(s"đ" * 200)
       println(s"đ" * 200)
       println(s"New Frontier")
+      newFrontier.collect().foreach(println)
 
       val commCommFrontier = newFrontier.map(nf => {
         val comFrontier = nf._2.map(t => Map(t._1.community -> Map(t._1 -> t._2))).reduce((a, b) => {
@@ -421,16 +422,61 @@ object MyMain {
           }).toMap
         })
         (nf._1, comFrontier)
-      })
+      }).cache
+
+      println(s"\nComComFrontier: ${commCommFrontier.count}")
+      commCommFrontier.collect().foreach(println)
+      println(s"d" * 200)
 
       val doableMerges = commCommFrontier.map(ccf => {
         val curCom = ccf._1
         val curComFrontier = ccf._2
         val gain = curComFrontier.map(neiC => {
-          (neiC._1, curCom.potentialCommunityGain(neiC._1, neiC._2, totEdges))
+          (neiC._1, curCom.potentialCommunityGain(neiC._1, neiC._2, totEdges), curComFrontier)
         }).toList.filter(f => f._2 > 0.0)
         (curCom, gain)
-      }).collect().foreach(println)
+      }).cache
+
+      println(s"DoableMerges: ${doableMerges.count}")
+      doableMerges.collect().foreach(println)
+      println(s"m" * 200)
+
+      val comCom = doableMerges.map(m => {
+        m._2.map(e => (m._1, e._1, e._2, e._3.get(e._1).orNull))
+      }).reduce((a, b) => a ::: b)
+
+      println(s"ComCom: ${comCom.length}")
+      comCom.foreach(println)
+      println(s"ß" * 200)
+
+      val scheduledIndex = sc.broadcast(Scheduler.dynamicMergingScheduler(comCom.map(c => (c._1, c._2))).map(sc => sc._1.toString + sc._2.toString))
+      println(s"ScheduledIndex: ${scheduledIndex.value.length}")
+      scheduledIndex.value.foreach(println)
+      println(s"ß" * 200)
+
+      val scheduledOp = sc.parallelize(comCom.filter(f => scheduledIndex.value.contains(f._1.toString + f._2.toString))).map(op => (op._1.comId, op)).cache
+
+      println(s"ScheduledOp: ${scheduledOp.count}")
+      scheduledOp.collect().foreach(println)
+      println(s"ß" * 200)
+
+      /*
+            commRDD = commRDD.map(c=> (c.comId, c)).leftOuterJoin(scheduledOp).map(cOp => {
+              val op = cOp._2._2.orNull
+              val com = cOp._2._1
+
+              if (op == null)
+                com
+              else {
+                val otherCom = op._2
+                val modImprove = op._3
+                val frontier = op._4
+
+                otherCom.members.foreach(memb => com.addToComm((memb, frontier.getOrElse(memb, 0))))
+              }
+            })
+      */
+
 
       if (cycle == endCycle) {
         updated = false
